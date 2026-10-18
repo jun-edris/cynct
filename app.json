@@ -46,7 +46,8 @@
           "photosPermission": "Pick a QR code, receipt or goal photo.",
           "cameraPermission": "Take a photo for a receipt or a goal."
         }
-      ]
+      ],
+      "expo-image"
     ],
     "scheme": "cynct",
     "experiments": {

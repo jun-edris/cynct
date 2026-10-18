@@ -9,7 +9,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
 import { router } from 'expo-router';
 import { fonts, radius, space, useTheme } from '../theme';
-import { dayLabel, parseISO, peso, todayISO } from '../lib/money';
+import { dayLabel, groupDigits, parseISO, peso, todayISO } from '../lib/money';
 import { evaluate, hasOperator, press } from '../lib/calc';
 
 // ---------- icons ----------
@@ -75,6 +75,26 @@ export function Screen({ title, subtitle, back, right, children, scroll = true, 
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: c.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       {header}{body}
     </KeyboardAvoidingView>
+  );
+}
+
+/**
+ * Even columns that always fit: children are laid out in rows of `cols`, each cell flex: 1.
+ * (Percentage widths plus a gap can overflow on some phones and fall back to one column.)
+ */
+export function Grid({ cols = 2, gap = 10, children }: { cols?: number; gap?: number; children: React.ReactNode }) {
+  const items = React.Children.toArray(children).filter(Boolean);
+  const rows: React.ReactNode[][] = [];
+  for (let i = 0; i < items.length; i += cols) rows.push(items.slice(i, i + cols));
+  return (
+    <View style={{ gap }}>
+      {rows.map((row, r) => (
+        <View key={r} style={{ flexDirection: 'row', gap }}>
+          {row.map((child, i) => <View key={i} style={{ flex: 1 }}>{child}</View>)}
+          {Array.from({ length: cols - row.length }, (_, i) => <View key={`pad${i}`} style={{ flex: 1 }} />)}
+        </View>
+      ))}
+    </View>
   );
 }
 
@@ -242,14 +262,18 @@ export function IconButton({ name, onPress, label, color, filled, size = 44 }: {
   );
 }
 
-export function Field({ label, hint, error, style, big, ...props }: TextInputProps & { label: string; hint?: string; error?: string; big?: boolean }) {
+export function Field({ label, hint, error, style, big, decimals = 2, ...props }: TextInputProps & { label: string; hint?: string; error?: string; big?: boolean; decimals?: number }) {
   const { c } = useTheme();
   const [focus, setFocus] = useState(false);
+  // Amount fields get thousands separators as you type; the parsers ignore the commas.
+  const grouped = props.keyboardType === 'decimal-pad' || props.keyboardType === 'numbers-and-punctuation';
+  const value = grouped && typeof props.value === 'string' ? groupDigits(props.value, decimals) : props.value;
+  const onChangeText = grouped && props.onChangeText ? (t: string) => props.onChangeText!(groupDigits(t, decimals)) : props.onChangeText;
   return (
     // Grow to share a row, but keep the natural height in a column (flex: 1 would collapse it and let the hint overlap what follows).
     <View style={{ gap: 7, flexGrow: 1, flexShrink: 1 }}>
       <T v="label">{label}</T>
-      <TextInput placeholderTextColor={c.faint} accessibilityLabel={label} {...props}
+      <TextInput placeholderTextColor={c.faint} accessibilityLabel={label} {...props} value={value} onChangeText={onChangeText}
         onFocus={(e) => { setFocus(true); props.onFocus?.(e); }} onBlur={(e) => { setFocus(false); props.onBlur?.(e); }}
         style={[{ minHeight: 52, borderRadius: radius.md, borderWidth: 1.5, paddingHorizontal: 14, paddingVertical: 12, fontFamily: fonts.medium, fontSize: 16,
           backgroundColor: c.surface, color: c.ink, borderColor: error ? c.spend : focus ? c.mango : c.line },

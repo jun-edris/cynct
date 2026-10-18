@@ -1,14 +1,24 @@
 import React, { useState } from 'react';
-import { ActivityIndicator, Image, View } from 'react-native';
+import { ActivityIndicator, Image, Platform, View } from 'react-native';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { extractTextFromImage, isSupported } from 'expo-text-extractor';
 import { useData } from '../data/DataContext';
 import { radius, useTheme } from '../theme';
 import { Button, Card, Chip, DateField, Empty, Field, Note, Screen, Section, Select, T } from '../components/ui';
 import { keepPhoto, useAccountOptions, useCategoryOptions } from '../components/domain';
-import { guessCategory, parseReceipt, type ReceiptGuess } from '../lib/receipt';
+import { guessCategory, parseReceipt, rowsFromLines, type OcrLine, type ReceiptGuess } from '../lib/receipt';
 import { inputValue, peso, todayISO, toCentavos } from '../lib/money';
+
+// On-device text reading (Google ML Kit, model bundled in the app, so it works offline from the first scan).
+// Loaded lazily: the native module doesn't exist in the web preview.
+const isSupported = Platform.OS !== 'web';
+async function readReceipt(uri: string): Promise<string[]> {
+  const { recognizeText } = await import('@infinitered/react-native-mlkit-text-recognition');
+  const res = await recognizeText(uri);
+  const lines: OcrLine[] = res.blocks.flatMap(b => b.lines.map(l => ({ text: l.text, frame: l.frame })));
+  // Rebuild printed rows from positions; fall back to plain blocks if positions are missing.
+  return lines.length ? rowsFromLines(lines) : res.blocks.map(b => b.text);
+}
 
 export default function Scan() {
   const { c } = useTheme();
@@ -22,6 +32,7 @@ export default function Scan() {
   const [categoryId, setCategoryId] = useState('');
   const [accountId, setAccountId] = useState((data.settings.lastUsedAccount as string) || (data.settings.defaultAccountId as string) || '');
   const [showText, setShowText] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
   const accountOptions = useAccountOptions();
   const catOptions = useCategoryOptions('expense');
 
@@ -36,20 +47,22 @@ export default function Scan() {
         ? await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.9 })
         : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.9 });
       if (res.canceled || !res.assets?.[0]) return;
-      setBusy(true); setGuess(null);
+      setBusy(true); setGuess(null); setFailure(null);
       const kept = await keepPhoto(res.assets[0].uri);
       setPhoto(kept);
-      // The text reader wants a plain file path, not a file:// URL.
-      const blocks = await extractTextFromImage(kept.replace(/^file:\/\//, ''));
-      const g = parseReceipt(blocks, todayISO());
+      const rows = await readReceipt(kept);
+      const g = parseReceipt(rows, todayISO());
       setGuess(g);
       setAmount(g.total ? inputValue(g.total) : '');
       setNote(g.merchant ?? '');
       setDate(g.date ?? todayISO());
       setCategoryId(guessCategory(g, parseCats) ?? '');
-      if (!blocks.length) toast('No text found. Try again with the receipt flat and well lit.');
+      if (!rows.length) toast('No text found. Try again with the receipt flat and well lit.');
     } catch (e) {
       console.warn(e);
+      // Show the real reason so a failure can be reported, and still let the person continue by hand.
+      setFailure(e instanceof Error ? e.message : String(e));
+      setGuess({ total: null, date: null, merchant: null, amounts: [], lines: [] });
       toast('Couldn’t read that photo. You can still type the amount.');
     } finally { setBusy(false); }
   };
@@ -82,6 +95,8 @@ export default function Scan() {
       {!busy && !guess && !photo ? (
         <View style={{ marginTop: 16 }}><Empty icon="line-scan" title="Scan a receipt" text="Cynct fills in the expense; you check it and save." /></View>
       ) : null}
+
+      {failure ? <View style={{ marginTop: 14 }}><Note tone="warn" icon="alert-outline">{`Reading failed: ${failure}`}</Note></View> : null}
 
       {photo && guess && !busy ? (
         <>

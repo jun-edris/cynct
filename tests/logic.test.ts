@@ -260,3 +260,30 @@ describe('keypad calculator', () => {
     expect(keys(['9', '⌫', '7'])).toBe('7');
   });
 });
+
+describe('typing amounts with thousands separators', () => {
+  it('groups as you type and keeps what parses', async () => {
+    const { groupDigits, toCentavos } = await import('../src/lib/money');
+    expect(groupDigits('1234')).toBe('1,234');
+    expect(groupDigits('1,2345')).toBe('12,345');
+    expect(groupDigits('1234567.891')).toBe('1,234,567.89');
+    expect(groupDigits('0012')).toBe('12');
+    expect(groupDigits('.5')).toBe('0.5');
+    expect(groupDigits('100.')).toBe('100.');
+    expect(groupDigits('1..2.3')).toBe('1.23');
+    expect(groupDigits('58.250000', 6)).toBe('58.250000');
+    expect(groupDigits('2.5k')).toBe('2.5k');
+    expect(groupDigits('')).toBe('');
+    expect(groupDigits('-12500')).toBe('-12,500');
+    expect(groupDigits('-')).toBe('-');
+    expect(toCentavos(groupDigits('1234567.8'))).toBe(123456780);
+  });
+  it('privacy mode hides every formatted amount', async () => {
+    const m = await import('../src/lib/money');
+    m.setMasked(true);
+    expect(m.peso(123456)).toBe('₱••••');
+    expect(m.compactPeso(10_000_000)).toBe('₱••••');
+    m.setMasked(false);
+    expect(m.peso(123456)).toBe('₱1,234.56');
+  });
+});

@@ -5,7 +5,7 @@ import { useData, safeJson } from '../../data/DataContext';
 import { isPayable, usePayUpcoming } from '../../data/actions';
 import { radius, useTheme } from '../../theme';
 import { Bar, Block, Button, Card, Empty, Icon, IconButton, List, Screen, Section, StatTile, T } from '../../components/ui';
-import { Hills, TxRow, UpcomingRow } from '../../components/domain';
+import { EyeButton, Hills, TxRow, UpcomingRow } from '../../components/domain';
 import { compactPeso, monthKey, peso, todayISO, parseISO, nowMs } from '../../lib/money';
 import { budgetStatus, goalProgress, monthRange, netWorth, streak, summarize, upcoming } from '../../lib/ledger';
 
@@ -47,6 +47,8 @@ export default function Home() {
           <Icon name={st.current ? 'fire' : 'fire-off'} size={20} color={st.current ? c.mango : c.faint} />
           <T v="num" style={{ fontSize: 15 }}>{st.current}</T>
         </Pressable>
+        <EyeButton />
+        <View style={{ width: 6 }} />
         <IconButton name="cog-outline" label="Settings" onPress={() => router.push('/settings')} filled />
       </View>
 

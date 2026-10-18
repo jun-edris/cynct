@@ -3,6 +3,7 @@ import { loadAll, type AllData, type DB } from '../db/repo';
 import { accountBalances, goalFund } from '../lib/ledger';
 import type { ParseCategory } from '../lib/parse';
 import type { Account, Category, Transaction } from '../db/schema';
+import { setMasked } from '../lib/money';
 import { BASE, inBase, missingRates, money, toBase, type RateMap } from '../lib/currency';
 
 export interface ToastAction { label: string; run: () => void }
@@ -64,6 +65,8 @@ export function DataProvider({ db, children }: { db: DB; children: React.ReactNo
   }, [db, reload, toast]);
 
   const value = useMemo<Ctx>(() => {
+    // Applied before any screen renders so every formatted amount follows the eye button.
+    setMasked(data.settings.hideAmounts === true);
     const balances = accountBalances(data.accounts, data.transactions);
     // Saved rates win; anything else comes from the last live download.
     const fx = data.settings.fx as { perUnit?: Record<string, number> } | undefined;

@@ -3,8 +3,9 @@ import { Pressable, View } from 'react-native';
 import { router } from 'expo-router';
 import { useData } from '../../data/DataContext';
 import { radius, useTheme } from '../../theme';
-import { Bar, Button, Card, Empty, Icon, IconBubble, IconButton, List, Note, Row, Screen, Section, Segmented, T } from '../../components/ui';
+import { Bar, Button, Card, Empty, Grid, Icon, IconBubble, IconButton, List, Note, Row, Screen, Section, Segmented, T } from '../../components/ui';
 import { BASE, money } from '../../lib/currency';
+import { EyeButton } from '../../components/domain';
 import { compactPeso, peso } from '../../lib/money';
 import { isLiability, netWorth } from '../../lib/ledger';
 import { ACCOUNT_TYPES } from '../../lib/seed';
@@ -18,7 +19,7 @@ function AccountCard({ a, balance, base }: { a: Account; balance: number; base: 
   const m = (v: number) => money(v, a.currency);
   return (
     <Pressable onPress={() => router.push(`/account/${a.id}`)} accessibilityRole="button" accessibilityLabel={`${a.name}, ${liab ? `owe ${m(owed)}` : m(balance)}`}
-      style={({ pressed }) => ({ width: '48.5%', aspectRatio: 1.05, backgroundColor: a.color, borderRadius: radius.lg, padding: 14, justifyContent: 'space-between', opacity: pressed ? 0.85 : 1 })}>
+      style={({ pressed }) => ({ width: '100%', aspectRatio: 1.05, backgroundColor: a.color, borderRadius: radius.lg, padding: 14, justifyContent: 'space-between', opacity: pressed ? 0.85 : 1 })}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <View style={{ width: 38, height: 38, borderRadius: 13, backgroundColor: 'rgba(11,20,38,0.12)', alignItems: 'center', justifyContent: 'center' }}>
           <Icon name={a.icon} size={21} color={NAVY} />
@@ -48,6 +49,7 @@ export default function Wallet() {
 
   return (
     <Screen title="Wallet" right={<>
+      <EyeButton />
       <IconButton name="qrcode" label="My payment methods" onPress={() => router.push('/payment-methods')} filled />
       <IconButton name="plus" label="Add account" onPress={() => router.push('/account/new')} filled />
     </>} padBottom={130}>
@@ -90,9 +92,9 @@ export default function Wallet() {
         return (
           <Section key={String(title)} title={String(title)} aside={liab ? `${peso(Math.max(0, -total), { cents: false })} owed` : peso(total, { cents: false })}>
             {view === 'cards' ? (
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+              <Grid>
                 {accs.map(a => <AccountCard key={a.id} a={a} balance={balances.get(a.id) ?? 0} base={baseBalances.get(a.id) ?? 0} />)}
-              </View>
+              </Grid>
             ) : (
               <List>
                 {accs.map(a => {

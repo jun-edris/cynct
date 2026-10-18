@@ -8,12 +8,12 @@ import { router } from 'expo-router';
 import { money } from '../lib/currency';
 import { useData, safeJson } from '../data/DataContext';
 import { fonts, radius, useTheme, type Colors } from '../theme';
-import { Button, Chip, Field, Icon, IconBubble, Row, Sheet, T, formatTime, type Option } from './ui';
+import { Button, Chip, Field, Icon, IconBubble, IconButton, Row, Sheet, T, formatTime, type Option } from './ui';
 import { dayLabel, peso, uid } from '../lib/money';
 import { dueStatus, type UpcomingItem } from '../lib/ledger';
 import { ACCOUNT_TYPES, SWATCHES } from '../lib/seed';
 import type { Account, Category, Transaction } from '../db/schema';
-import { upsert } from '../db/repo';
+import { setSetting, upsert } from '../db/repo';
 
 const upsertTag = upsert.tag;
 
@@ -325,4 +325,13 @@ export function Toast() {
       </View>
     </Animated.View>
   );
+}
+
+// ---------- privacy ----------
+/** Shows or hides every amount in the app (handy in public). Remembered between launches. */
+export function EyeButton() {
+  const { data, act } = useData();
+  const hidden = data.settings.hideAmounts === true;
+  return <IconButton name={hidden ? 'eye-off-outline' : 'eye-outline'} label={hidden ? 'Show amounts' : 'Hide amounts'} filled
+    onPress={() => act(db => setSetting(db, 'hideAmounts', !hidden))} />;
 }

@@ -3,7 +3,7 @@ import { Pressable, View } from 'react-native';
 import { router, type Href } from 'expo-router';
 import { useData, safeJson } from '../../data/DataContext';
 import { radius, useTheme } from '../../theme';
-import { Card, Icon, IconBubble, Screen, Section, T } from '../../components/ui';
+import { Card, Grid, Icon, IconBubble, Screen, Section, T } from '../../components/ui';
 import { compactPeso, dayLabel, todayISO } from '../../lib/money';
 import { budgetStatus, debtStatus, goalProgress, upcoming } from '../../lib/ledger';
 
@@ -11,7 +11,7 @@ function Tile({ icon, color, title, sub, href, wide }: { icon: string; color: st
   const { c } = useTheme();
   return (
     <Pressable onPress={() => router.push(href)} accessibilityRole="button" accessibilityLabel={title}
-      style={({ pressed }) => ({ width: wide ? '100%' : '48.5%', backgroundColor: c.surface, borderRadius: radius.lg, padding: 16,
+      style={({ pressed }) => ({ width: '100%', height: wide ? undefined : '100%', backgroundColor: c.surface, borderRadius: radius.lg, padding: 16,
         flexDirection: wide ? 'row' : 'column', alignItems: wide ? 'center' : 'flex-start', gap: wide ? 14 : 12, opacity: pressed ? 0.8 : 1 })}>
       <IconBubble icon={icon} color={color} size={wide ? 46 : 42} />
       <View style={{ flex: wide ? 1 : undefined }}>
@@ -40,7 +40,7 @@ export default function Plan() {
 
   return (
     <Screen title="Plan" subtitle="Budgets, goals, debts and what’s coming." padBottom={130}>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 6 }}>
+      <View style={{ gap: 10, marginTop: 6 }}>
         <Tile wide icon="chart-donut" color={c.mango} title="Budgets"
           sub={budgetCount ? `${budgetCount} active${over ? ` · ${over} over limit` : ' · all within limits'}` : 'Daily to yearly limits, and income targets'} href="/budgets" />
         <Tile wide icon="flag-variant" color={c.income} title="Goals" sub={goals.length ? `${goals.length} in progress · ${compactPeso(saved)} saved` : 'Save toward something that matters'} href="/goals" />
@@ -62,7 +62,7 @@ export default function Plan() {
       </Section>
 
       <Section title="Tools">
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+        <Grid>
           <Tile icon="chart-timeline-variant" color={c.mango} title="Forecast" sub="Cash for the next 7–90 days" href="/forecast" />
           <Tile icon="view-dashboard-outline" color={c.info} title="Overview" sub="Everything in one screen" href="/overview" />
           <Tile icon="calendar-sync" color="#8B6CFF" title="Installments" sub={activeInst ? `${activeInst} active` : '0% plans, card installments'} href="/installments" />
@@ -74,13 +74,15 @@ export default function Plan() {
           <Tile icon="line-scan" color="#8B6CFF" title="Scan receipt" sub="Reads the total for you" href="/scan" />
           <Tile icon="bookmark-outline" color="#FF5C8A" title="Templates" sub={data.templates.length ? `${data.templates.length} saved` : 'One-tap repeat entries'} href="/templates" />
           <Tile icon="currency-usd" color={c.income} title="Currencies" sub={missing.length ? `Set ${missing.join(', ')} rate` : 'Rates and converter'} href="/currencies" />
-        </View>
+        </Grid>
       </Section>
 
       <Section title="Calculators">
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+        <Grid>
           <Tile icon="bank-outline" color="#4C8DFF" title="Loan" sub="Monthly payment and true cost" href="/tools/loan" />
           <Tile icon="piggy-bank-outline" color={c.mango} title="Savings" sub="How much, how long" href="/tools/savings" />
+        </Grid>
+        <View style={{ marginTop: 10 }}>
           <Tile icon="account-multiple-outline" color="#2EC4B6" title="Split the bill" sub="Even shares with service charge" href="/tools/split" wide />
         </View>
       </Section>

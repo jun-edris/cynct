@@ -62,3 +62,17 @@ describe('receipt category guess', () => {
     expect(guessCategory(parseReceipt(['Random Store', 'TOTAL 10.00'], today), cats)).toBeNull();
   });
 });
+
+describe('OCR row rebuild', () => {
+  it('puts a label and its amount from separate columns back on one row', async () => {
+    const { rowsFromLines } = await import('../src/lib/receipt');
+    const f = (left: number, top: number, w = 120, h = 20) => ({ left, top, right: left + w, bottom: top + h });
+    const rows = rowsFromLines([
+      { text: 'ALTURAS SUPERMARKET', frame: f(40, 10, 300) },
+      { text: 'SUBTOTAL', frame: f(20, 100) }, { text: 'TOTAL', frame: f(20, 130) }, { text: 'CASH', frame: f(20, 160) },
+      { text: '1,486.75', frame: f(300, 102) }, { text: '1,486.75', frame: f(300, 131) }, { text: '2,000.00', frame: f(300, 163) },
+    ]);
+    expect(rows).toEqual(['ALTURAS SUPERMARKET', 'SUBTOTAL  1,486.75', 'TOTAL  1,486.75', 'CASH  2,000.00']);
+    expect(parseReceipt(rows, today).total).toBe(148675);
+  });
+});

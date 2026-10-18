@@ -4,7 +4,7 @@ import { Redirect, Tabs, router, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useData } from '../../data/DataContext';
 import { fonts, radius, useTheme } from '../../theme';
-import { Chip, Icon, IconBubble, Sheet, T } from '../../components/ui';
+import { Chip, Grid, Icon, IconBubble, Sheet, T } from '../../components/ui';
 import { useApplyTemplate } from '../../data/actions';
 
 const TABS = [
@@ -29,15 +29,16 @@ function AddMenu({ open, onClose }: { open: boolean; onClose: () => void }) {
   ];
   return (
     <Sheet visible={open} onClose={onClose} title="Add">
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingBottom: 6 }}>
+      <Grid>
         {tiles.map(t => (
           <Pressable key={t.label} onPress={t.onPress} accessibilityRole="button" accessibilityLabel={t.label}
-            style={({ pressed }) => ({ width: '48.5%', backgroundColor: c.surface, borderRadius: radius.lg, padding: 16, gap: 12, opacity: pressed ? 0.8 : 1 })}>
+            style={({ pressed }) => ({ height: '100%', backgroundColor: c.surface, borderRadius: radius.lg, padding: 16, gap: 12, opacity: pressed ? 0.8 : 1 })}>
             <IconBubble icon={t.icon} color={t.color} size={44} />
             <View><T v="h3">{t.label}</T><T v="small">{t.sub}</T></View>
           </Pressable>
         ))}
-      </View>
+      </Grid>
+      <View style={{ height: 6 }} />
       {data.templates.length ? (
         <View style={{ gap: 8, marginTop: 6 }}>
           <T v="label">Quick add</T>

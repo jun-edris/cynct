@@ -22,7 +22,14 @@ export function toSignedCentavos(input: string): number {
 const whole = new Intl.NumberFormat('en-PH', { maximumFractionDigits: 0 });
 const cents = new Intl.NumberFormat('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+// Privacy mode (the eye button): every formatted amount shows as dots. Inputs aren't affected.
+let masked = false;
+export function setMasked(on: boolean) { masked = on; }
+export const isMasked = () => masked;
+const DOTS = '••••';
+
 export function peso(c: number, opts: { cents?: boolean | 'auto'; sign?: boolean } = {}): string {
+  if (masked) return `₱${DOTS}`;
   const { cents: showC = 'auto', sign = false } = opts;
   const abs = Math.abs(c);
   const useCents = showC === true || (showC === 'auto' && abs % 100 !== 0);
@@ -32,11 +39,29 @@ export function peso(c: number, opts: { cents?: boolean | 'auto'; sign?: boolean
 }
 
 export function compactPeso(c: number): string {
+  if (masked) return `₱${DOTS}`;
   const v = Math.abs(c) / 100;
   const neg = c < 0 ? '−' : '';
   if (v >= 1_000_000) return `${neg}₱${(v / 1_000_000).toFixed(v >= 10_000_000 ? 1 : 2).replace(/\.?0+$/, '')}M`;
   if (v >= 10_000) return `${neg}₱${Math.round(v / 1000)}k`;
   return `${neg}₱${whole.format(v)}`;
+}
+
+/**
+ * Formats a number while it's being typed: "1234567.8" → "1,234,567.8".
+ * Keeps one decimal point and at most `decimals` digits after it; leaves text with letters (like "5k") alone.
+ */
+export function groupDigits(s: string, decimals = 2): string {
+  if (/[a-z]/i.test(s)) return s;
+  // A leading minus (balances you owe, corrections) is kept.
+  const sign = /^\s*[-−]/.test(s) ? '-' : '';
+  const t = s.replace(/[^\d.]/g, '');
+  const dot = t.indexOf('.');
+  let int = dot >= 0 ? t.slice(0, dot) : t;
+  const dec = dot >= 0 ? t.slice(dot + 1).replace(/\./g, '').slice(0, decimals) : null;
+  int = int.replace(/^0+(?=\d)/, '');
+  const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return sign + (dec !== null ? `${grouped || '0'}.${dec}` : grouped);
 }
 
 /** Plain number for a text field: 123450 → "1234.5" */

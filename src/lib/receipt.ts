@@ -131,3 +131,24 @@ export function guessCategory(g: ReceiptGuess, cats: { id: string; kind: string;
   }
   return best?.id ?? null;
 }
+
+export interface OcrLine { text: string; frame: { left: number; top: number; right: number; bottom: number } }
+
+/**
+ * Rebuilds printed rows from OCR lines. ML Kit often returns "TOTAL" and "1,234.50" as separate blocks
+ * (left and right columns); lines whose vertical middles sit within half a line height of each other are
+ * joined left-to-right so the label and its amount end up on one row again.
+ */
+export function rowsFromLines(lines: OcrLine[]): string[] {
+  const items = lines.filter(l => l.text.trim()).map(l => {
+    const h = Math.max(1, l.frame.bottom - l.frame.top);
+    return { text: l.text.trim(), left: l.frame.left, mid: (l.frame.top + l.frame.bottom) / 2, h };
+  }).sort((a, b) => a.mid - b.mid);
+  const rows: { mid: number; h: number; parts: typeof items }[] = [];
+  for (const it of items) {
+    const row = rows.find(r => Math.abs(r.mid - it.mid) <= Math.min(r.h, it.h) * 0.5);
+    if (row) { row.parts.push(it); row.mid = (row.mid * (row.parts.length - 1) + it.mid) / row.parts.length; }
+    else rows.push({ mid: it.mid, h: it.h, parts: [it] });
+  }
+  return rows.sort((a, b) => a.mid - b.mid).map(r => r.parts.sort((a, b) => a.left - b.left).map(p => p.text).join('  '));
+}

@@ -3,10 +3,10 @@ import { Pressable, TextInput, View } from 'react-native';
 import { useData } from '../data/DataContext';
 import { useRefreshRates, type FxCache } from '../data/actions';
 import { fonts, radius, useTheme } from '../theme';
-import { Button, Card, ErrorText, Field, Icon, IconBubble, IconButton, List, Note, Row, Screen, Section, Sheet, T, Toggle } from '../components/ui';
+import { Button, Card, ErrorText, Field, Grid, Icon, IconBubble, IconButton, List, Note, Row, Screen, Section, Sheet, T, Toggle } from '../components/ui';
 import { removeRate, setRate, setSetting } from '../db/repo';
 import { BASE, CURRENCIES, convert, currencyInfo, money, rateLabel, rateToText, textToRate } from '../lib/currency';
-import { dayLabel, nowMs, todayISO, toCentavos } from '../lib/money';
+import { dayLabel, groupDigits, nowMs, todayISO, toCentavos } from '../lib/money';
 
 function ago(ms: number) {
   const min = Math.round((nowMs() - ms) / 60_000);
@@ -27,19 +27,19 @@ function CurrencyPicker({ visible, onClose, onPick, selected, title }: { visible
         <TextInput value={q} onChangeText={setQ} placeholder="Search currency" placeholderTextColor={c.faint} accessibilityLabel="Search currency" autoCapitalize="none"
           style={{ flex: 1, minHeight: 46, color: c.ink, fontFamily: fonts.medium, fontSize: 16 }} />
       </View>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+      <Grid cols={3} gap={8}>
         {list.map(x => {
           const on = x.code === selected;
           return (
             <Pressable key={x.code} onPress={() => { onPick(x.code); setQ(''); onClose(); }} accessibilityRole="button" accessibilityLabel={`${x.code} ${x.name}`}
-              style={({ pressed }) => ({ width: '31.5%', paddingVertical: 12, borderRadius: radius.md, alignItems: 'center', gap: 2, borderWidth: 1.5,
+              style={({ pressed }) => ({ paddingVertical: 12, borderRadius: radius.md, alignItems: 'center', gap: 2, borderWidth: 1.5,
                 borderColor: on ? c.mango : c.line, backgroundColor: on ? c.mangoSoft : c.surface, opacity: pressed ? 0.7 : 1 })}>
               <T v="numLg" style={{ fontSize: 18 }} numberOfLines={1}>{x.symbol.trim()}</T>
               <T v="semi" style={{ fontSize: 13 }}>{x.code}</T>
             </Pressable>
           );
         })}
-      </View>
+      </Grid>
       {!list.length ? <T v="muted" style={{ textAlign: 'center', marginTop: 12 }}>No match.</T> : null}
     </Sheet>
   );
@@ -104,7 +104,7 @@ export default function Currencies() {
         <T v="label">Amount</T>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: c.sunk, borderRadius: radius.md, paddingHorizontal: 14 }}>
           <T v="numLg" color={c.muted} style={{ fontSize: 20 }}>{currencyInfo(from).symbol.trim()}</T>
-          <TextInput value={amt} onChangeText={setAmt} keyboardType="decimal-pad" accessibilityLabel="Amount to convert" placeholder="0" placeholderTextColor={c.faint}
+          <TextInput value={groupDigits(amt)} onChangeText={t => setAmt(groupDigits(t))} keyboardType="decimal-pad" accessibilityLabel="Amount to convert" placeholder="0" placeholderTextColor={c.faint}
             style={{ flex: 1, minHeight: 60, color: c.ink, fontFamily: fonts.numBlack, fontSize: 28 }} />
         </View>
         <T v="label" style={{ marginTop: 4 }}>Converted</T>
@@ -160,7 +160,7 @@ export default function Currencies() {
 
       <Sheet visible={!!editing} onClose={() => setEditing(null)} title={editing ? `${editing} rate` : ''}>
         <View style={{ gap: 14 }}>
-          <Field label={`Pesos for 1 ${editing ?? ''}`} big value={rateText} onChangeText={setRateText} keyboardType="decimal-pad" placeholder="e.g. 58.25" />
+          <Field label={`Pesos for 1 ${editing ?? ''}`} big value={rateText} onChangeText={setRateText} keyboardType="decimal-pad" decimals={6} placeholder="e.g. 58.25" />
           <Toggle label="Keep my rate" hint="Use this number instead of live rates, e.g. the rate your bank actually gave you." value={pin} onChange={setPin} />
           <ErrorText text={error} />
           <Button label="Save" icon="check" onPress={save} />
