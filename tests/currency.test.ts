@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { finishMigration, hasSqlite, rawAtVersion, testDb } from './helpers';
-import { applySeed, exportAll, importAll, loadAll, newTx, remove, saveAccount, setRate, upsert } from '../src/db/repo';
+import { BACKUP_VERSION, applySeed, exportAll, importAll, loadAll, newTx, remove, saveAccount, setRate, upsert } from '../src/db/repo';
 import { emptySetup } from '../src/lib/seed';
 import { accountBalances, netWorth, summarize } from '../src/lib/ledger';
 import { convert, inBase, missingRates, money, textToRate, toBase } from '../src/lib/currency';
@@ -78,7 +78,7 @@ describe.skipIf(!hasSqlite)('currency in the database', () => {
     upsert.template(db, { id: 'tp1', name: 'Jeep', type: 'expense', amount: 13_00, accountId: 'php', toAccountId: null, categoryId: 'transport', note: 'jeep', tags: '[]', sort: 0, createdAt: 1 });
     expect(() => setRate(db, 'EUR', 0)).toThrow();
     const backup = JSON.parse(JSON.stringify(exportAll(db)));
-    expect(backup.version).toBe(3);
+    expect(backup.version).toBe(BACKUP_VERSION);
     const fresh = testDb();
     importAll(fresh.db, backup);
     const d = loadAll(fresh.db);

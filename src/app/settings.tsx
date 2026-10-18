@@ -53,6 +53,21 @@ export default function Settings() {
         <Segmented value={theme} onChange={(v) => act(d => setSetting(d, 'theme', v))} options={[['system', 'Phone', 'cellphone'], ['light', 'Light', 'white-balance-sunny'], ['dark', 'Dark', 'weather-night']]} />
       </Section>
 
+      <Section title="Personalize">
+        <List>
+          <Row icon="bell-outline" iconColor={c.mango} title="Reminders" sub={(data.settings.notify as { enabled?: boolean } | undefined)?.enabled ? 'On' : 'Off'} chevron onPress={() => router.push('/notifications')} />
+          <Row icon="view-dashboard-edit-outline" iconColor={c.info} title="Home layout" sub="Show, hide and reorder sections" chevron onPress={() => router.push('/home-layout')} />
+        </List>
+      </Section>
+
+      <Section title="Reports">
+        <List>
+          <Row icon="play-circle-outline" iconColor={c.mango} title="Your recap" sub="Last month and this year: top categories, biggest moments, money style" chevron onPress={() => router.push('/recap')} />
+          <Row icon="file-pdf-box" iconColor={c.spend} title="Monthly statement" sub="Export a month as a PDF" chevron onPress={() => router.push('/statement')} />
+          <Row icon="file-document-outline" iconColor={c.info} title="Invoices" sub="Bill clients and export PDFs" chevron onPress={() => router.push('/invoices')} />
+        </List>
+      </Section>
+
       <Section title="Security">
         <Card>
           <Toggle label="Lock with fingerprint or face" hint="Asks when you open the app and after a minute away. Falls back to your phone PIN."

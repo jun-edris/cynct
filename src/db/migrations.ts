@@ -265,6 +265,27 @@ export const MIGRATIONS: string[] = [
     created_at INTEGER NOT NULL
   );
   `,
+  // v4 — Phase 3: invoices
+  `
+  CREATE TABLE invoices (
+    id TEXT PRIMARY KEY NOT NULL,
+    number TEXT NOT NULL,
+    client TEXT NOT NULL DEFAULT '',
+    client_email TEXT NOT NULL DEFAULT '',
+    client_address TEXT NOT NULL DEFAULT '',
+    issue_date TEXT NOT NULL,
+    due_date TEXT NOT NULL,
+    currency TEXT NOT NULL DEFAULT 'PHP',
+    items TEXT NOT NULL DEFAULT '[]',
+    tax_rate_bp INTEGER NOT NULL DEFAULT 0 CHECK (tax_rate_bp >= 0),
+    discount INTEGER NOT NULL DEFAULT 0 CHECK (discount >= 0),
+    notes TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','sent','paid')),
+    paid_on TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  `,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

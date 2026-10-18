@@ -199,6 +199,25 @@ export const templates = sqliteTable('templates', {
   createdAt: integer('created_at').notNull(),
 });
 
+export const invoices = sqliteTable('invoices', {
+  id: text('id').primaryKey(),
+  number: text('number').notNull(),
+  client: text('client').notNull().default(''),
+  clientEmail: text('client_email').notNull().default(''),
+  clientAddress: text('client_address').notNull().default(''),
+  issueDate: text('issue_date').notNull(),
+  dueDate: text('due_date').notNull(),
+  currency: text('currency').notNull().default('PHP'),
+  items: text('items').notNull().default('[]'), // JSON [{ desc, qty, rate }] — rate in minor units
+  taxRate: integer('tax_rate_bp').notNull().default(0), // basis points: 1200 = 12%
+  discount: integer('discount').notNull().default(0),
+  notes: text('notes').notNull().default(''),
+  status: text('status').notNull().default('draft'), // draft | sent | paid
+  paidOn: text('paid_on'),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+});
+
 export const settings = sqliteTable('settings', {
   key: text('key').primaryKey(),
   value: text('value').notNull(), // JSON
@@ -218,5 +237,6 @@ export type Trip = typeof trips.$inferSelect;
 export type Note = typeof notes.$inferSelect;
 export type Rate = typeof rates.$inferSelect;
 export type Template = typeof templates.$inferSelect;
+export type Invoice = typeof invoices.$inferSelect;
 
-export const schema = { accounts, categories, transactions, budgets, recurring, installments, debts, goals, paymentMethods, tags, trips, notes, rates, templates, settings };
+export const schema = { accounts, categories, transactions, budgets, recurring, installments, debts, goals, paymentMethods, tags, trips, notes, rates, templates, invoices, settings };

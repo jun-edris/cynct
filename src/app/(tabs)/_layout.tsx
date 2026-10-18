@@ -32,7 +32,7 @@ function AddMenu({ open, onClose }: { open: boolean; onClose: () => void }) {
       <Grid>
         {tiles.map(t => (
           <Pressable key={t.label} onPress={t.onPress} accessibilityRole="button" accessibilityLabel={t.label}
-            style={({ pressed }) => ({ height: '100%', backgroundColor: c.surface, borderRadius: radius.lg, padding: 16, gap: 12, opacity: pressed ? 0.8 : 1 })}>
+            style={({ pressed }) => ({ flexGrow: 1, backgroundColor: c.surface, borderRadius: radius.lg, padding: 16, gap: 12, opacity: pressed ? 0.8 : 1 })}>
             <IconBubble icon={t.icon} color={t.color} size={44} />
             <View><T v="h3">{t.label}</T><T v="small">{t.sub}</T></View>
           </Pressable>

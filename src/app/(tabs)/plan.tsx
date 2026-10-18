@@ -11,7 +11,7 @@ function Tile({ icon, color, title, sub, href, wide }: { icon: string; color: st
   const { c } = useTheme();
   return (
     <Pressable onPress={() => router.push(href)} accessibilityRole="button" accessibilityLabel={title}
-      style={({ pressed }) => ({ width: '100%', height: wide ? undefined : '100%', backgroundColor: c.surface, borderRadius: radius.lg, padding: 16,
+      style={({ pressed }) => ({ width: '100%', flexGrow: wide ? undefined : 1, backgroundColor: c.surface, borderRadius: radius.lg, padding: 16,
         flexDirection: wide ? 'row' : 'column', alignItems: wide ? 'center' : 'flex-start', gap: wide ? 14 : 12, opacity: pressed ? 0.8 : 1 })}>
       <IconBubble icon={icon} color={color} size={wide ? 46 : 42} />
       <View style={{ flex: wide ? 1 : undefined }}>
@@ -74,6 +74,10 @@ export default function Plan() {
           <Tile icon="line-scan" color="#8B6CFF" title="Scan receipt" sub="Reads the total for you" href="/scan" />
           <Tile icon="bookmark-outline" color="#FF5C8A" title="Templates" sub={data.templates.length ? `${data.templates.length} saved` : 'One-tap repeat entries'} href="/templates" />
           <Tile icon="currency-usd" color={c.income} title="Currencies" sub={missing.length ? `Set ${missing.join(', ')} rate` : 'Rates and converter'} href="/currencies" />
+          <Tile icon="file-document-outline" color={c.info} title="Invoices" sub={data.invoices.filter(i => i.status !== 'paid').length ? `${data.invoices.filter(i => i.status !== 'paid').length} unpaid` : 'Bill a client, send a PDF'} href="/invoices" />
+          <Tile icon="file-pdf-box" color={c.spend} title="Statement" sub="A month as a PDF" href="/statement" />
+          <Tile icon="play-circle-outline" color={c.mango} title="Recap" sub="Your month, wrapped" href="/recap" />
+          <Tile icon="bell-outline" color="#8B6CFF" title="Reminders" sub={(data.settings.notify as { enabled?: boolean } | undefined)?.enabled ? 'On' : 'Bills, paydays, due dates'} href="/notifications" />
         </Grid>
       </Section>
 
@@ -81,6 +85,7 @@ export default function Plan() {
         <Grid>
           <Tile icon="bank-outline" color="#4C8DFF" title="Loan" sub="Monthly payment and true cost" href="/tools/loan" />
           <Tile icon="piggy-bank-outline" color={c.mango} title="Savings" sub="How much, how long" href="/tools/savings" />
+          <Tile icon="calculator-variant-outline" color={c.spend} title="Tax" sub="PH income tax, SSS, PhilHealth, Pag-IBIG" href="/tools/tax" />
         </Grid>
         <View style={{ marginTop: 10 }}>
           <Tile icon="account-multiple-outline" color="#2EC4B6" title="Split the bill" sub="Even shares with service charge" href="/tools/split" wide />

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { AppState, Text, View } from 'react-native';
-import { Stack, SplashScreen } from 'expo-router';
+import { Stack, SplashScreen, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts } from 'expo-font';
@@ -18,6 +18,8 @@ import { todayISO } from '../lib/money';
 import { useRefreshRates, type FxCache } from '../data/actions';
 import { STALE_AFTER_MS } from '../lib/fxrates';
 import { BASE } from '../lib/currency';
+import { planReminders } from '../lib/reminders';
+import { onOpen, readPrefs, schedule, setupNotifications } from '../lib/notify';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -92,6 +94,28 @@ function AutoRates() {
   return null;
 }
 
+/** Keeps phone notifications in step with your data: re-plans whenever bills, debts or settings change. */
+function Reminders() {
+  const { data, balances, rtx, fmt } = useData();
+  const prefs = readPrefs(data.settings);
+  const plan = planReminders({ recurring: data.recurring, installments: data.installments, debts: data.debts, accounts: data.accounts, balances,
+    goals: data.goals, txs: rtx, fmt }, prefs, todayISO());
+  const key = JSON.stringify([prefs, plan.map(r => [r.key, r.date, r.title, r.body])]);
+  const last = useRef('');
+  const latest = useRef({ plan, prefs });
+  useEffect(() => { latest.current = { plan, prefs }; });
+  useEffect(() => {
+    if (key === last.current) return;
+    const t = setTimeout(() => {
+      last.current = key;
+      schedule(latest.current.plan, latest.current.prefs).catch(e => console.warn('reminders', e));
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [key]);
+  useEffect(() => { setupNotifications(); return onOpen(url => router.push(url as never)); }, []);
+  return null;
+}
+
 function Shell() {
   const { c, dark } = useTheme();
   const { db, data, rtx, reload, toast } = useData();
@@ -117,6 +141,7 @@ function Shell() {
     <View style={{ flex: 1, backgroundColor: c.bg }}>
       <StatusBar style={dark ? 'light' : 'dark'} />
       <AutoRates />
+      <Reminders />
       <LockGate>
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: c.bg }, animation: 'slide_from_right' }}>
           <Stack.Screen name="(tabs)" />

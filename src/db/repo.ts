@@ -3,9 +3,9 @@
 import { and, eq, inArray, isNotNull, lt } from 'drizzle-orm';
 import type { BaseSQLiteDatabase, SQLiteTable } from 'drizzle-orm/sqlite-core';
 import {
-  schema, accounts, categories, transactions, budgets, recurring, installments, debts, goals, paymentMethods, tags, trips, notes, rates, templates, settings,
+  schema, accounts, categories, transactions, budgets, recurring, installments, debts, goals, paymentMethods, tags, trips, notes, rates, templates, invoices, settings,
   type Account, type Category, type Transaction, type Budget, type Recurring, type Installment, type Debt, type Goal, type PaymentMethod,
-  type Tag, type Trip, type Note, type Rate, type Template,
+  type Tag, type Trip, type Note, type Rate, type Template, type Invoice,
 } from './schema';
 import { advanceDue } from '../lib/ledger';
 import { addMonths, todayISO, uid } from '../lib/money';
@@ -17,7 +17,7 @@ export type DB = BaseSQLiteDatabase<'sync', any, typeof schema>;
 export interface AllData {
   accounts: Account[]; categories: Category[]; transactions: Transaction[]; deleted: Transaction[]; budgets: Budget[]; recurring: Recurring[];
   installments: Installment[]; debts: Debt[]; goals: Goal[]; paymentMethods: PaymentMethod[]; tags: Tag[]; trips: Trip[]; notes: Note[];
-  rates: Rate[]; templates: Template[];
+  rates: Rate[]; templates: Template[]; invoices: Invoice[];
   settings: Record<string, unknown>;
 }
 
@@ -46,6 +46,7 @@ export function loadAll(db: DB): AllData {
     notes: db.select().from(notes).all().sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.updatedAt - a.updatedAt),
     rates: db.select().from(rates).all().sort((a, b) => a.currency.localeCompare(b.currency)),
     templates: db.select().from(templates).all().sort((a, b) => a.sort - b.sort || a.createdAt - b.createdAt),
+    invoices: db.select().from(invoices).all().sort((a, b) => b.issueDate.localeCompare(a.issueDate) || b.createdAt - a.createdAt),
     settings: s,
   };
 }
@@ -74,7 +75,7 @@ export function ensureDefaults(db: DB) {
 
 // ---------- generic upsert / delete ----------
 type TableWithId = typeof accounts | typeof categories | typeof transactions | typeof budgets | typeof recurring | typeof installments
-  | typeof debts | typeof goals | typeof paymentMethods | typeof tags | typeof trips | typeof notes | typeof templates;
+  | typeof debts | typeof goals | typeof paymentMethods | typeof tags | typeof trips | typeof notes | typeof templates | typeof invoices;
 
 function upsertIn(db: DB, table: TableWithId, row: object) {
   (db.insert(table) as any).values(row).onConflictDoUpdate({ target: (table as any).id, set: row }).run();
@@ -95,6 +96,7 @@ export const upsert = {
   trip: (db: DB, r: Trip) => upsertIn(db, trips, r),
   note: (db: DB, r: Note) => upsertIn(db, notes, r),
   template: (db: DB, r: Template) => upsertIn(db, templates, r),
+  invoice: (db: DB, r: Invoice) => upsertIn(db, invoices, r),
 };
 
 // ---------- exchange rates ----------
@@ -112,6 +114,7 @@ export const remove = {
   paymentMethod: (db: DB, id: string) => db.delete(paymentMethods).where(eq(paymentMethods.id, id)).run(),
   note: (db: DB, id: string) => db.delete(notes).where(eq(notes.id, id)).run(),
   template: (db: DB, id: string) => db.delete(templates).where(eq(templates.id, id)).run(),
+  invoice: (db: DB, id: string) => db.delete(invoices).where(eq(invoices.id, id)).run(),
   trip: (db: DB, id: string) => db.transaction(tx => {
     tx.update(transactions).set({ tripId: null }).where(eq(transactions.tripId, id)).run();
     tx.delete(trips).where(eq(trips.id, id)).run();
@@ -307,6 +310,7 @@ const ORDER: { name: ListKey; table: SQLiteTable }[] = [
   { name: 'notes', table: notes },
   { name: 'rates', table: rates },
   { name: 'templates', table: templates },
+  { name: 'invoices', table: invoices },
 ];
 
 function orderCategories(cats: Category[]): Category[] {
@@ -317,7 +321,7 @@ function orderCategories(cats: Category[]): Category[] {
 
 type Lists = { [K in ListKey]: AllData[K] };
 const emptyLists = (): Lists => ({ categories: [], accounts: [], transactions: [], budgets: [], recurring: [], installments: [], debts: [], goals: [],
-  paymentMethods: [], tags: [], trips: [], notes: [], rates: [], templates: [] });
+  paymentMethods: [], tags: [], trips: [], notes: [], rates: [], templates: [], invoices: [] });
 
 function replaceAllIn(db: DB, data: Partial<Lists>, settingsObj: Record<string, unknown>) {
   db.transaction(tx => {
@@ -343,7 +347,7 @@ export function applyPwaImport(db: DB, p: PwaImport) {
 
 // Kept from when the app was called Bahay so every existing backup still restores.
 export const BACKUP_APP = 'bahay-native';
-export const BACKUP_VERSION = 3;
+export const BACKUP_VERSION = 4;
 
 export function exportAll(db: DB) {
   const d = loadAll(db);

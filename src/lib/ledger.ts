@@ -17,21 +17,26 @@ export const live = <T extends { deletedAt?: number | null }>(txs: T[]) => txs.f
 export const FEES_CATEGORY = 'fees';
 
 // ---------- balances ----------
+/** How one entry moves account balances: [accountId, signed amount in that account's currency]. */
+export function txDeltas(t: TxLite): [string, number][] {
+  if (t.deletedAt) return [];
+  const fee = t.fee ?? 0;
+  const out: [string, number][] = [];
+  const add = (id: string | null | undefined, v: number) => { if (id && v) out.push([id, v]); };
+  switch (t.type) {
+    case 'expense': case 'debt_out': case 'goal_in': add(t.accountId, -t.amount); break;
+    case 'income': case 'debt_in': case 'ext_in': case 'goal_out': add(t.accountId, t.amount); break;
+    case 'adjust': add(t.accountId, t.amount); break;
+    case 'ext_out': add(t.accountId, -(t.amount + fee)); break;
+    case 'transfer': add(t.accountId, -(t.amount + fee)); add(t.toAccountId, t.toAmount ?? t.amount); break;
+    // goal_interest only changes the goal, not an account
+  }
+  return out;
+}
+
 export function accountBalances(accounts: AccountLite[], txs: TxLite[]): Map<string, number> {
   const bal = new Map<string, number>(accounts.map(a => [a.id, a.opening]));
-  const add = (id: string | null | undefined, v: number) => { if (id) bal.set(id, (bal.get(id) ?? 0) + v); };
-  for (const t of txs) {
-    if (t.deletedAt) continue;
-    const fee = t.fee ?? 0;
-    switch (t.type) {
-      case 'expense': case 'debt_out': case 'goal_in': add(t.accountId, -t.amount); break;
-      case 'income': case 'debt_in': case 'ext_in': case 'goal_out': add(t.accountId, t.amount); break;
-      case 'adjust': add(t.accountId, t.amount); break;
-      case 'ext_out': add(t.accountId, -(t.amount + fee)); break;
-      case 'transfer': add(t.accountId, -(t.amount + fee)); add(t.toAccountId, t.toAmount ?? t.amount); break;
-      // goal_interest only changes the goal, not an account
-    }
-  }
+  for (const t of txs) for (const [id, v] of txDeltas(t)) bal.set(id, (bal.get(id) ?? 0) + v);
   return bal;
 }
 

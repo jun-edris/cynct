@@ -90,7 +90,8 @@ export function Grid({ cols = 2, gap = 10, children }: { cols?: number; gap?: nu
     <View style={{ gap }}>
       {rows.map((row, r) => (
         <View key={r} style={{ flexDirection: 'row', gap }}>
-          {row.map((child, i) => <View key={i} style={{ flex: 1 }}>{child}</View>)}
+          {/* Cells take the row's height; tiles fill it with flexGrow. Never use height: '100%' here: Android resolves it against the screen. */}
+          {row.map((child, i) => <View key={i} style={{ flex: 1, flexDirection: 'column' }}>{child}</View>)}
           {Array.from({ length: cols - row.length }, (_, i) => <View key={`pad${i}`} style={{ flex: 1 }} />)}
         </View>
       ))}

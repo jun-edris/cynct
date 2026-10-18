@@ -47,7 +47,8 @@
           "cameraPermission": "Take a photo for a receipt or a goal."
         }
       ],
-      "expo-image"
+      "expo-image",
+      ["expo-notifications", {"icon": "./assets/android-icon-monochrome.png", "color": "#FFB020"}]
     ],
     "scheme": "cynct",
     "experiments": {

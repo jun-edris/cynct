@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { amountsIn, findDate, parseReceipt } from '../src/lib/receipt';
+import { amountsIn, findDate, guessCategory, parseReceipt } from '../src/lib/receipt';
 
 const today = '2026-10-18';
 
@@ -74,5 +74,48 @@ describe('OCR row rebuild', () => {
     ]);
     expect(rows).toEqual(['ALTURAS SUPERMARKET', 'SUBTOTAL  1,486.75', 'TOTAL  1,486.75', 'CASH  2,000.00']);
     expect(parseReceipt(rows, today).total).toBe(148675);
+  });
+});
+
+describe('real receipts', () => {
+  it('Threesixty Pharmacy: total over cash, negative change and an old "date issued"', () => {
+    const text = `THREESIXTY PHARMACY
+Operated by: Blue Ocean Holdings, Inc.
+B. Rodriguez St.
+Cebu City, Cebu
+Tel. No. 412-1412
+VAT Reg, TIN:008-381-043-075
+SN:41-CC319
+PN:FP082015-082-0049619-00075
+MIN:15081910153418601
+SALES INVOICE
+OR No. 1144C2000423106
+Cashier Rivas  Trans:  438257
+Date: 10/11/26 6:24 POS No. 1144C2
+Description  Amount
+Item No.: 360000006497
+ABSOLUTE DIST WTR 1000ML DTI
+2 pc @ 25.00  50.00 VA
+Item No.: 360000002504
+CHERIFER PGM 10-22 W/ ZINC
+5 cap @ 21.35  106.75 VA
+Total Php  156.75
+Cash  500.00
+Change  -343.25
+Number of Items:  7
+VAT EXEMPT SALES  0.00
+VATABLE SALES  139.96
+ZERO RATED SALES  0.00
+12% VAT  16.79
+TOTAL AMOUNT DUE  156.75
+Thank You!
+APSOFT INC., 431 Shaw Blvd. corner
+VAT REG TIN#007-047-985-000
+DATE ISSUED: 11/25/2010`;
+    const g = parseReceipt([text], today);
+    expect(g.total).toBe(15675);
+    expect(g.date).toBe('2026-10-11');
+    expect(g.merchant).toBe('Threesixty Pharmacy');
+    expect(guessCategory(g, [{ id: 'health', kind: 'expense', name: 'Health', keywords: [] }])).toBe('health');
   });
 });

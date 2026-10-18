@@ -81,3 +81,14 @@ It's only for screenshots and quick UI checks; nothing persists there, and backu
 - **Templates**: saved entries under the + button. With an amount and account they record in one tap; otherwise they open the entry screen prefilled.
 - **Calculators** (`src/app/tools/`, `src/lib/finance.ts`): loan (reducing balance or add-on rate, with its true yearly cost), savings, split the bill.
 - Database v3 (`MIGRATIONS[2]`) adds `transactions.to_amount`, `rates`, `templates`. Backups are version 3; version 2 backups still restore.
+
+## Phase 3
+
+- **Tax calculator** (`src/lib/phtax.ts`, `tools/tax`): 2026 SSS (5% of MSC ₱5k–₱35k), GSIS 9%, PhilHealth 2.5% (₱10k–₱100k), Pag-IBIG 2% up to ₱10k,
+  BIR TRAIN graduated table, 13th month tax-free up to ₱90k, self-employed with 40% OSD + 3% percentage tax, and the 8% option. Estimates only.
+- **Invoices** (`invoices`, `invoice/[id]`, `business`, `src/lib/invoice.ts`, DB v4 `invoices` table): line items, discount, tax, any currency,
+  PDF export through `expo-print` + share sheet, "Paid" can record the income.
+- **Reminders** (`src/lib/reminders.ts` plans, `src/lib/notify.ts` schedules with `expo-notifications`): daily check-in, bills/paydays/installments
+  (plus a day-before heads-up for bills), debts, card due days, goal dates — all local, re-planned whenever data changes, max 40 scheduled.
+- **Monthly statement PDF** (`statement`, `src/lib/statement.ts`) and **Recap** (`recap`, `src/lib/recap.ts`): Wrapped-style cards for last month / this year.
+- **Home layout** (`home-layout`, `src/lib/home.ts`): show, hide and reorder Home sections.
