@@ -81,10 +81,10 @@ export default function Settings() {
 
       <Section title="Restore">
         <List>
-          <Row icon="file-upload-outline" iconColor={c.info} title="Restore from a file" sub="Bahay app or Bahay web backups" chevron
+          <Row icon="file-upload-outline" iconColor={c.info} title="Restore from a file" sub="Cynct backups, including ones from when it was called Bahay" chevron
             onPress={() => run(async () => { const d = await pickBackupFile(); if (d) askRestore(d, 'that backup'); })} />
           {backups.slice(0, 7).map(b => (
-            <Row key={b.uri} icon="history" iconColor={c.muted} title={b.name.replace('bahay-', '').replace('.json', '')} sub="Daily backup on this phone" chevron
+            <Row key={b.uri} icon="history" iconColor={c.muted} title={b.name.replace(/^[a-z]+-/, '').replace('.json', '')} sub="Daily backup on this phone" chevron
               onPress={() => run(async () => askRestore(await readLocalBackup(b.uri), `the ${b.name} backup`))} />
           ))}
         </List>
@@ -93,7 +93,7 @@ export default function Settings() {
       <Section title="Data">
         <List>
           <Row icon="file-delimited-outline" iconColor={c.income} title="Export transactions (CSV)" sub="Opens in Sheets or Excel" chevron
-            onPress={() => run(() => shareText(db, `bahay-transactions-${todayISO()}.csv`,
+            onPress={() => run(() => shareText(db, `cynct-transactions-${todayISO()}.csv`,
               toCSV(data.transactions, new Map(data.accounts.map(a => [a.id, a.name])), new Map(data.categories.map(x => [x.id, x.name]))), 'text/csv'))} />
           <Row icon="shape-outline" iconColor="#2EC4B6" title="Categories" chevron onPress={() => router.push('/categories')} />
           <Row icon="delete-clock-outline" iconColor={c.warn} title="Recently deleted" sub={`${data.deleted.length} item${data.deleted.length === 1 ? '' : 's'}`} chevron onPress={() => router.push('/deleted')} />
@@ -107,7 +107,7 @@ export default function Settings() {
       <Section title="Danger zone">
         <Button variant="danger" icon="delete-forever-outline" label="Erase all data" onPress={askErase} />
       </Section>
-      <T v="small" style={{ textAlign: 'center', marginTop: 24 }}>Bahay {Constants.expoConfig?.version ?? ''} · Offline. No accounts, no servers.</T>
+      <T v="small" style={{ textAlign: 'center', marginTop: 24 }}>Cynct {Constants.expoConfig?.version ?? ''} · Your data stays on this phone.</T>
 
       <Sheet visible={!!confirm} onClose={() => setConfirm(null)} title={confirm?.title}>
         <View style={{ gap: 12 }}>

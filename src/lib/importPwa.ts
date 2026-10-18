@@ -1,4 +1,4 @@
-// Converts a backup from the Bahay web app (PWA) into rows for the native database.
+// Converts a backup from the old Bahay web app (PWA, before the rename to Cynct) into rows for the native database.
 import type { Account, Budget, Category, Goal, Recurring, Transaction } from '../db/schema';
 import { ACCOUNT_ICONS, DEFAULT_CATEGORIES } from './seed';
 import { uid } from './money';
@@ -22,7 +22,7 @@ export function isPwaBackup(data: unknown): boolean {
 }
 
 export function convertPwaBackup(data: unknown, now = Date.now()): PwaImport {
-  if (!isPwaBackup(data)) throw new Error('This file is not a Bahay web app backup.');
+  if (!isPwaBackup(data)) throw new Error('This file is not a backup from the old Bahay web app.');
   const d = data as Obj;
   let skipped = 0;
 
@@ -57,7 +57,7 @@ export function convertPwaBackup(data: unknown, now = Date.now()): PwaImport {
     if (!valid) { skipped++; continue; }
     const categoryId = str(t.categoryId);
     transactions.push({
-      id: str(t.id) || uid(), type, amount, fee: 0, accountId, toAccountId: type === 'transfer' ? toAccountId : null,
+      id: str(t.id) || uid(), type, amount, fee: 0, toAmount: null, accountId, toAccountId: type === 'transfer' ? toAccountId : null,
       categoryId: categoryId && categoryIds.has(categoryId) ? categoryId : null, date, time: null, note: str(t.note),
       counterparty: null, heldFor: null, photoUri: null, tags: '[]',
       recurringId: str(t.recurringId) || null, installmentId: null, debtId: null, debtRole: null, goalId: null, tripId: null, deletedAt: null,

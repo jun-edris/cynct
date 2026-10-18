@@ -41,7 +41,7 @@ function rangePresets(today = todayISO()) {
 export default function History() {
   const { c } = useTheme();
   const insets = useSafeAreaInsets();
-  const { data, cats, act } = useData();
+  const { data, cats, act, rtx } = useData();
   const catName = useCategoryName();
   const today = todayISO();
   const presets = rangePresets(today);
@@ -96,12 +96,15 @@ export default function History() {
     });
   }, [data.transactions, data.accounts, query, kind, accountId, categoryId, tagIds, tripId, range, cats, catName]);
 
-  const sum = summarize(filtered, '1900-01-01', '2999-12-31', cats);
+  // Totals in pesos even when some entries are in another currency.
+  const baseById = useMemo(() => new Map(rtx.map(t => [t.id, t])), [rtx]);
+  const inPhp = (t: Transaction) => baseById.get(t.id) ?? t;
+  const sum = summarize(filtered.map(inPhp), '1900-01-01', '2999-12-31', cats);
   const sections = useMemo(() => {
     const map = new Map<string, Transaction[]>();
     for (const t of filtered) { const l = map.get(t.date) ?? []; l.push(t); map.set(t.date, l); }
-    return [...map.entries()].map(([date, items]) => ({ title: date, net: items.reduce((s, t) => s + (t.type === 'income' ? t.amount : t.type === 'expense' ? -t.amount : 0), 0), data: items }));
-  }, [filtered]);
+    return [...map.entries()].map(([date, items]) => ({ title: date, net: items.map(t => baseById.get(t.id) ?? t).reduce((s, t) => s + (t.type === 'income' ? t.amount : t.type === 'expense' ? -t.amount : 0), 0), data: items }));
+  }, [filtered, baseById]);
 
   const activeFilters = (kind !== 'all' ? 1 : 0) + (accountId ? 1 : 0) + (categoryId ? 1 : 0) + (tagIds.length ? 1 : 0) + (tripId ? 1 : 0);
   const toggleSel = (id: string) => setSelected(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id]);

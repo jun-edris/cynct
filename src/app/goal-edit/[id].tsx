@@ -52,7 +52,7 @@ export default function GoalEdit() {
       <Screen title={g ? 'Edit goal' : 'New goal'} back padBottom={30}>
         <View style={{ gap: 16 }}>
           <PhotoField value={photo} onChange={setPhoto} label="Cover photo" />
-          <Field label="Name" value={name} onChangeText={setName} placeholder="e.g. Bahay sa Bohol" maxLength={40} />
+          <Field label="Name" value={name} onChangeText={setName} placeholder="e.g. New laptop, Japan trip, house" maxLength={40} />
           <Field label="Target" big value={target} onChangeText={setTarget} keyboardType="decimal-pad" placeholder="0" />
           <FormRow>
             <View style={{ flex: 1 }}><Field label="Already saved" value={starting} onChangeText={setStarting} keyboardType="decimal-pad" placeholder="0" /></View>

@@ -9,9 +9,9 @@ import { compactPeso, peso, todayISO } from '../lib/money';
 
 export default function Goals() {
   const { c } = useTheme();
-  const { data, balances } = useData();
+  const { data, baseBalances, rtx } = useData();
   const today = todayISO();
-  const all = data.goals.filter(g => !g.archived).map(g => ({ g, p: goalProgress({ ...g, annualRate: g.annualRate / 10_000, accountIds: safeJson<string[]>(g.accountIds, []) }, balances, data.transactions, today) }));
+  const all = data.goals.filter(g => !g.archived).map(g => ({ g, p: goalProgress({ ...g, annualRate: g.annualRate / 10_000, accountIds: safeJson<string[]>(g.accountIds, []) }, baseBalances, rtx, today) }));
   const saved = all.reduce((s, x) => s + x.p.saved, 0);
   const target = all.reduce((s, x) => s + x.g.target, 0);
   const done = all.filter(x => x.p.pct >= 1).length;
@@ -50,7 +50,7 @@ export default function Goals() {
               </Card>
             ))}
           </View>
-        ) : <Empty icon="flag-outline" title="No goals yet" text="A house, an emergency fund, a trip. Bahay shows exactly how much to save each month." action="Create a goal" onAction={() => router.push('/goal-edit/new')} />}
+        ) : <Empty icon="flag-outline" title="No goals yet" text="A house, an emergency fund, a trip. Cynct shows exactly how much to save each month." action="Create a goal" onAction={() => router.push('/goal-edit/new')} />}
       </Section>
     </Screen>
   );

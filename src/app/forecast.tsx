@@ -45,15 +45,15 @@ function Curve({ series, color, danger, line, faint }: { series: { date: string;
 
 export default function Forecast() {
   const { c } = useTheme();
-  const { data, balances } = useData();
+  const { data, baseBalances, rtx, plannedBase } = useData();
   const pay = usePayUpcoming();
   const [days, setDays] = useState(30);
   const [custom, setCustom] = useState('');
   const today = todayISO();
   const f = useMemo(() => forecast({
-    accounts: data.accounts, balances, txs: data.transactions, recurring: data.recurring,
-    installments: data.installments.filter(i => i.paidCount < i.months), debts: data.debts,
-  }, today, days), [data, balances, today, days]);
+    accounts: data.accounts, balances: baseBalances, txs: rtx, recurring: plannedBase.recurring,
+    installments: plannedBase.installments.filter(i => i.paidCount < i.months), debts: data.debts,
+  }, today, days), [data, baseBalances, rtx, plannedBase, today, days]);
   const net = f.actualIn + f.expectedIn - f.actualOut - f.expectedOut;
 
   return (

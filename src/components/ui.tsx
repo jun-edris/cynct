@@ -246,7 +246,8 @@ export function Field({ label, hint, error, style, big, ...props }: TextInputPro
   const { c } = useTheme();
   const [focus, setFocus] = useState(false);
   return (
-    <View style={{ gap: 7, flex: 1 }}>
+    // Grow to share a row, but keep the natural height in a column (flex: 1 would collapse it and let the hint overlap what follows).
+    <View style={{ gap: 7, flexGrow: 1, flexShrink: 1 }}>
       <T v="label">{label}</T>
       <TextInput placeholderTextColor={c.faint} accessibilityLabel={label} {...props}
         onFocus={(e) => { setFocus(true); props.onFocus?.(e); }} onBlur={(e) => { setFocus(false); props.onBlur?.(e); }}
@@ -306,7 +307,7 @@ export function Select({ label, value, options, onChange, placeholder = 'Choose'
   const [open, setOpen] = useState(false);
   const current = options.find(o => o.value === value);
   return (
-    <View style={{ gap: 7, flex: 1 }}>
+    <View style={{ gap: 7, flexGrow: 1, flexShrink: 1 }}>
       {!compact ? <T v="label">{label}</T> : null}
       <Pressable onPress={() => setOpen(true)} accessibilityRole="button" accessibilityLabel={`${label}: ${current?.label ?? placeholder}`}
         style={{ minHeight: 52, borderRadius: radius.md, borderWidth: 1.5, borderColor: c.line, backgroundColor: c.surface, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
@@ -340,7 +341,7 @@ export function Select({ label, value, options, onChange, placeholder = 'Choose'
 function PickerBox({ label, text, icon, onPress, onClear, placeholder }: { label: string; text: string | null; icon: string; onPress: () => void; onClear?: () => void; placeholder: string }) {
   const { c } = useTheme();
   return (
-    <View style={{ gap: 7, flex: 1 }}>
+    <View style={{ gap: 7, flexGrow: 1, flexShrink: 1 }}>
       <T v="label">{label}</T>
       <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${label}: ${text ?? placeholder}`}
         style={{ minHeight: 52, borderRadius: radius.md, borderWidth: 1.5, borderColor: c.line, backgroundColor: c.surface, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10 }}>

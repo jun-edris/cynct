@@ -12,7 +12,7 @@ const TRIP_ICONS = ['airplane', 'beach', 'island', 'car', 'bus', 'ferry', 'train
 
 export default function Travel() {
   const { c } = useTheme();
-  const { data, act } = useData();
+  const { data, act, rtx } = useData();
   const [editing, setEditing] = useState<Trip | 'new' | null>(null);
   const [name, setName] = useState('');
   const [icon, setIcon] = useState('airplane');
@@ -21,7 +21,7 @@ export default function Travel() {
   const [error, setError] = useState<string | null>(null);
   const active = data.trips.find(t => !t.endDate);
   const totals = new Map<string, { spent: number; n: number }>();
-  for (const t of data.transactions) {
+  for (const t of rtx) {
     if (!t.tripId) continue;
     const v = totals.get(t.tripId) ?? { spent: 0, n: 0 };
     v.n++;

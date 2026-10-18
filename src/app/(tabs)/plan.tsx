@@ -25,16 +25,16 @@ function Tile({ icon, color, title, sub, href, wide }: { icon: string; color: st
 
 export default function Plan() {
   const { c } = useTheme();
-  const { data, balances, cats } = useData();
+  const { data, baseBalances, rtx, cats, plannedBase, missing } = useData();
   const today = todayISO();
   const budgetCount = data.budgets.length;
-  const over = data.budgets.filter(b => b.kind !== 'income' && budgetStatus(b, data.transactions, cats, today).remaining < 0).length;
+  const over = data.budgets.filter(b => b.kind !== 'income' && budgetStatus(b, rtx, cats, today).remaining < 0).length;
   const goals = data.goals.filter(g => !g.archived);
-  const saved = goals.reduce((s, g) => s + goalProgress({ ...g, annualRate: g.annualRate / 10_000, accountIds: safeJson<string[]>(g.accountIds, []) }, balances, data.transactions, today).saved, 0);
+  const saved = goals.reduce((s, g) => s + goalProgress({ ...g, annualRate: g.annualRate / 10_000, accountIds: safeJson<string[]>(g.accountIds, []) }, baseBalances, rtx, today).saved, 0);
   const open = data.debts.filter(d => !d.closed);
-  const owe = open.filter(d => d.direction === 'owe').reduce((s, d) => s + debtStatus(d, data.transactions).remaining, 0);
-  const owed = open.filter(d => d.direction === 'owed').reduce((s, d) => s + debtStatus(d, data.transactions).remaining, 0);
-  const next = upcoming(data.recurring, data.installments.filter(i => i.paidCount < i.months), today, 60)[0];
+  const owe = open.filter(d => d.direction === 'owe').reduce((s, d) => s + debtStatus(d, rtx).remaining, 0);
+  const owed = open.filter(d => d.direction === 'owed').reduce((s, d) => s + debtStatus(d, rtx).remaining, 0);
+  const next = upcoming(plannedBase.recurring, plannedBase.installments.filter(i => i.paidCount < i.months), today, 60)[0];
   const activeTrip = data.trips.find(t => !t.endDate);
   const activeInst = data.installments.filter(i => i.paidCount < i.months).length;
 
@@ -71,6 +71,17 @@ export default function Plan() {
           <Tile icon="note-text-outline" color="#C08552" title="Notes" sub={`${data.notes.length} note${data.notes.length === 1 ? '' : 's'}`} href="/notes" />
           <Tile icon="shape-outline" color="#2EC4B6" title="Categories" sub="Add, rename, nest" href="/categories" />
           <Tile icon="qrcode" color="#7C879C" title="Payment methods" sub="Your QR codes, ready to share" href="/payment-methods" />
+          <Tile icon="line-scan" color="#8B6CFF" title="Scan receipt" sub="Reads the total for you" href="/scan" />
+          <Tile icon="bookmark-outline" color="#FF5C8A" title="Templates" sub={data.templates.length ? `${data.templates.length} saved` : 'One-tap repeat entries'} href="/templates" />
+          <Tile icon="currency-usd" color={c.income} title="Currencies" sub={missing.length ? `Set ${missing.join(', ')} rate` : 'Rates and converter'} href="/currencies" />
+        </View>
+      </Section>
+
+      <Section title="Calculators">
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+          <Tile icon="bank-outline" color="#4C8DFF" title="Loan" sub="Monthly payment and true cost" href="/tools/loan" />
+          <Tile icon="piggy-bank-outline" color={c.mango} title="Savings" sub="How much, how long" href="/tools/savings" />
+          <Tile icon="account-multiple-outline" color="#2EC4B6" title="Split the bill" sub="Even shares with service charge" href="/tools/split" wide />
         </View>
       </Section>
     </Screen>

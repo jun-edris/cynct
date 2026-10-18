@@ -8,7 +8,8 @@ import { TxRow } from '../../components/domain';
 import { accountIsUnused, deleteAccount, saveAccount, setSetting, upsert } from '../../db/repo';
 import { ACCOUNT_ICONS, ACCOUNT_TYPES, ICON_CHOICES, SWATCHES } from '../../lib/seed';
 import { isLiability } from '../../lib/ledger';
-import { inputValue, nowMs, peso, toCentavos, toSignedCentavos, uid } from '../../lib/money';
+import { inputValue, nowMs, toCentavos, toSignedCentavos, uid } from '../../lib/money';
+import { BASE, CURRENCIES, money } from '../../lib/currency';
 import type { Account } from '../../db/schema';
 
 const NAVY = '#0B1426';
@@ -21,6 +22,8 @@ export default function AccountScreen() {
   const current = a ? balances.get(a.id) ?? 0 : 0;
 
   const [type, setType] = useState(a?.type ?? 'bank');
+  const [currency, setCurrency] = useState(a?.currency ?? BASE);
+  const m = (v: number, o?: { sign?: boolean }) => money(v, currency, o);
   const [name, setName] = useState(a?.name ?? '');
   const [color, setColor] = useState(a?.color ?? SWATCHES[data.accounts.length % SWATCHES.length]);
   const [icon, setIcon] = useState(a?.icon ?? ACCOUNT_ICONS.bank);
@@ -60,7 +63,7 @@ export default function AccountScreen() {
     const sd = day(statementDay), dd = day(dueDay);
     if ((sd !== null && !(sd >= 1 && sd <= 31)) || (dd !== null && !(dd >= 1 && dd <= 31))) return setError('Days must be between 1 and 31.');
     const row: Account = {
-      id: a?.id ?? uid(), name: name.trim(), type, color, icon, currency: 'PHP', opening: !a || !hasHistory ? target : a.opening,
+      id: a?.id ?? uid(), name: name.trim(), type, color, icon, currency, opening: !a || !hasHistory ? target : a.opening,
       creditLimit, statementDay: liab ? sd : null, dueDay: liab ? dd : null, note: note.trim(), archived: a?.archived ?? false,
       sort: a?.sort ?? data.accounts.length, createdAt: a?.createdAt ?? nowMs(),
     };
@@ -70,7 +73,7 @@ export default function AccountScreen() {
       if (isDefault) setSetting(db, 'defaultAccountId', row.id);
       else if (data.settings.defaultAccountId === row.id) setSetting(db, 'defaultAccountId', null);
       else if (!data.settings.defaultAccountId && !a) setSetting(db, 'defaultAccountId', row.id);
-    }, correction ? `Saved, corrected by ${peso(correction, { sign: true })}` : a ? 'Saved changes' : `Added ${row.name}`);
+    }, correction ? `Saved, corrected by ${m(correction, { sign: true })}` : a ? 'Saved changes' : `Added ${row.name}`);
     if (ok) close();
   };
 
@@ -90,17 +93,23 @@ export default function AccountScreen() {
           <View>
             <T v="h3" color={NAVY}>{name || 'Account name'}</T>
             <T v="label" color={NAVY} style={{ opacity: 0.7, marginTop: 6 }}>{liab ? 'Owed' : 'Balance'}</T>
-            <T v="display" color={NAVY} style={{ fontSize: 34, lineHeight: 40 }}>{peso(previewBal)}</T>
+            <T v="display" color={NAVY} style={{ fontSize: 34, lineHeight: 40 }}>{m(previewBal)}</T>
           </View>
         </View>
 
         <View style={{ gap: 16, marginTop: 18 }}>
           <Select label="Account type" value={type} onChange={onType}
             options={Object.entries(ACCOUNT_TYPES).map(([value, label]) => ({ value, label, icon: ACCOUNT_ICONS[value], color: c.muted }))} />
+          {hasHistory ? (
+            <T v="small">{`Currency: ${currency}. It can’t change once the account has entries, because past amounts are in ${currency}.`}</T>
+          ) : (
+            <Select label="Currency" value={currency} onChange={setCurrency}
+              options={CURRENCIES.map(x => ({ value: x.code, label: `${x.code} · ${x.name}`, icon: x.code === BASE ? 'cash' : 'currency-usd' }))} />
+          )}
           <Field label="Account name" value={name} onChangeText={setName} placeholder="e.g. BPI, GCash, Cash" maxLength={40} />
           <Field label={liab ? (a ? 'Amount you owe right now' : 'Amount you owe') : a ? 'Real balance right now' : 'Starting balance'}
             big value={balance} onChangeText={setBalance} keyboardType="numbers-and-punctuation" placeholder="0"
-            hint={a && hasHistory ? `Bahay thinks it’s ${peso(liab ? -current : current)}. A different number is saved as a correction today.` : 'Your balance before anything you log here.'} />
+            hint={a && hasHistory ? `Cynct thinks it’s ${m(liab ? -current : current)}. A different number is saved as a correction today.` : 'Your balance before anything you log here.'} />
           {type === 'credit' ? <Field label="Credit limit (optional)" value={limit} onChangeText={setLimit} keyboardType="decimal-pad" placeholder="e.g. 50000" /> : null}
           <IconPicker value={icon} icons={ICON_CHOICES} color={color} onChange={setIcon} />
           <ColorPicker value={color} colors={SWATCHES} onChange={setColor} />

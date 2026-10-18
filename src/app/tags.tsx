@@ -11,13 +11,13 @@ import type { Tag } from '../db/schema';
 
 export default function Tags() {
   const { c } = useTheme();
-  const { data, act } = useData();
+  const { data, act, rtx } = useData();
   const [editing, setEditing] = useState<Tag | 'new' | null>(null);
   const [name, setName] = useState('');
   const [color, setColor] = useState(SWATCHES[0]);
   const [error, setError] = useState<string | null>(null);
   const stats = new Map<string, { n: number; spent: number }>();
-  for (const t of data.transactions) {
+  for (const t of rtx) {
     for (const id of safeJson<string[]>(t.tags, [])) {
       const s = stats.get(id) ?? { n: 0, spent: 0 };
       s.n++;

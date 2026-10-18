@@ -2,7 +2,8 @@ import React, { createContext, useCallback, useContext, useMemo, useRef, useStat
 import { loadAll, type AllData, type DB } from '../db/repo';
 import { accountBalances, goalFund } from '../lib/ledger';
 import type { ParseCategory } from '../lib/parse';
-import type { Account, Category } from '../db/schema';
+import type { Account, Category, Transaction } from '../db/schema';
+import { BASE, inBase, missingRates, money, toBase, type RateMap } from '../lib/currency';
 
 export interface ToastAction { label: string; run: () => void }
 export interface ToastState { id: number; message: string; action?: ToastAction }
@@ -10,8 +11,22 @@ export interface ToastState { id: number; message: string; action?: ToastAction 
 interface Ctx {
   db: DB;
   data: AllData;
+  /** Each account's balance in its own currency. */
   balances: Map<string, number>;
+  /** Each account's balance in pesos (0 for a currency with no rate yet). */
+  baseBalances: Map<string, number>;
+  /** Live transactions with amounts in pesos — use for anything that adds up across accounts. */
+  rtx: Transaction[];
+  rates: RateMap;
+  /** Foreign currencies used by an account but missing a rate. */
+  missing: string[];
+  /** Currency of an account (PHP when unknown). */
+  curOf: (accountId: string | null | undefined) => string;
+  /** Formats an amount in the given account's currency. */
+  fmt: (minor: number, accountId: string | null | undefined, opts?: { sign?: boolean; cents?: boolean | 'auto' }) => string;
   goalFunds: number;
+  /** Planned payments and installments with amounts in pesos, for timelines and forecasts. */
+  plannedBase: { recurring: AllData['recurring']; installments: AllData['installments'] };
   parseCats: ParseCategory[];
   cats: Category[];
   catById: Map<string, Category>;
@@ -50,10 +65,22 @@ export function DataProvider({ db, children }: { db: DB; children: React.ReactNo
 
   const value = useMemo<Ctx>(() => {
     const balances = accountBalances(data.accounts, data.transactions);
-    const goalFunds = data.goals.filter(g => !g.archived).reduce((s, g) => s + goalFund(g, data.transactions), 0);
+    // Saved rates win; anything else comes from the last live download.
+    const fx = data.settings.fx as { perUnit?: Record<string, number> } | undefined;
+    const rates: RateMap = new Map([...Object.entries(fx?.perUnit ?? {}), ...data.rates.map(r => [r.currency, r.perUnit] as [string, number])]);
+    const accCur = new Map(data.accounts.map(a => [a.id, a.currency || BASE]));
+    const rtx = inBase(data.transactions, accCur, rates);
+    const baseBalances = new Map([...balances].map(([id, v]) => [id, toBase(v, accCur.get(id) ?? BASE, rates)]));
+    const curOf = (id: string | null | undefined) => (id ? accCur.get(id) : undefined) ?? BASE;
+    const fmt = (minor: number, id: string | null | undefined, opts?: { sign?: boolean; cents?: boolean | 'auto' }) => money(minor, curOf(id), opts);
+    const plannedBase = {
+      recurring: data.recurring.map(r => ({ ...r, amount: toBase(r.amount, curOf(r.accountId), rates) })),
+      installments: data.installments.map(i => ({ ...i, monthlyAmount: toBase(i.monthlyAmount, curOf(i.accountId), rates) })),
+    };
+    const goalFunds = data.goals.filter(g => !g.archived).reduce((s, g) => s + goalFund(g, rtx), 0);
     const parseCats = data.categories.map(c => ({ ...c, keywords: safeJson<string[]>(c.keywords, []) }));
     return {
-      db, data, balances, goalFunds, parseCats, cats: data.categories,
+      db, data, balances, baseBalances, rtx, rates, missing: missingRates(data.accounts, rates), curOf, fmt, goalFunds, plannedBase, parseCats, cats: data.categories,
       catById: new Map(data.categories.map(c => [c.id, c])), accById: new Map(data.accounts.map(a => [a.id, a])),
       reload, act, toast, toastState, dismissToast,
     };

@@ -11,10 +11,10 @@ import { PERIOD_WORD } from '../lib/labels';
 
 export default function Budgets() {
   const { c } = useTheme();
-  const { data, cats, catById } = useData();
+  const { data, cats, catById, rtx } = useData();
   const [kind, setKind] = useState<'expense' | 'income'>('expense');
   const today = todayISO();
-  const list = data.budgets.filter(b => (b.kind ?? 'expense') === kind).map(b => ({ b, s: budgetStatus(b, data.transactions, cats, today) }));
+  const list = data.budgets.filter(b => (b.kind ?? 'expense') === kind).map(b => ({ b, s: budgetStatus(b, rtx, cats, today) }));
   const used = list.reduce((s, x) => s + x.s.spent, 0);
   const avail = list.reduce((s, x) => s + x.s.available, 0);
 

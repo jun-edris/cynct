@@ -10,7 +10,8 @@ import {
 import { CategoryGrid, PhotoField, TagField, useAccountOptions } from '../../components/domain';
 import { advanceDue } from '../../lib/ledger';
 import { hasOperator } from '../../lib/calc';
-import { nowMs, peso, toSignedCentavos, todayISO, uid } from '../../lib/money';
+import { nowMs, toSignedCentavos, todayISO, uid } from '../../lib/money';
+import { money, symbolOf } from '../../lib/currency';
 import { newTx, restore, setSetting, softDelete, upsert } from '../../db/repo';
 import type { Transaction } from '../../db/schema';
 
@@ -21,10 +22,11 @@ const FREQS = [{ value: 'monthly', label: 'Every month' }, { value: 'semimonthly
 function nowTime() { const d = new Date(); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; }
 
 export default function Entry() {
-  const params = useLocalSearchParams<{ id: string; type?: string }>();
+  // Prefill (from a receipt scan or a template): amount in pesos as text, note, date, photo, category, account.
+  const params = useLocalSearchParams<{ id: string; type?: string; amount?: string; note?: string; date?: string; photo?: string; category?: string; account?: string }>();
   const { c } = useTheme();
   const insets = useSafeAreaInsets();
-  const { data, act } = useData();
+  const { data, act, curOf } = useData();
   const existing = data.transactions.find(t => t.id === params.id) ?? data.deleted.find(t => t.id === params.id);
   const isNew = !existing;
   const special = existing && existing.type !== 'expense' && existing.type !== 'income';
@@ -32,15 +34,15 @@ export default function Entry() {
   const activeTrip = data.trips.find(t => !t.endDate);
 
   const [kind, setKind] = useState<Kind>(((existing?.type ?? params.type) === 'income' ? 'income' : 'expense'));
-  const [expr, setExpr] = useState(existing ? String(Math.abs(existing.amount) / 100) : '');
+  const [expr, setExpr] = useState(existing ? String(Math.abs(existing.amount) / 100) : params.amount ?? '');
   const [signedAmount, setSignedAmount] = useState(existing?.type === 'adjust' ? String(existing.amount / 100) : '');
-  const [keypadOpen, setKeypadOpen] = useState(isNew);
-  const [note, setNote] = useState(existing?.note ?? '');
-  const [categoryId, setCategoryId] = useState(existing?.categoryId ?? '');
-  const [accountId, setAccountId] = useState(existing?.accountId ?? lastUsed);
-  const [date, setDate] = useState(existing?.date ?? todayISO());
+  const [keypadOpen, setKeypadOpen] = useState(isNew && !params.amount);
+  const [note, setNote] = useState(existing?.note ?? params.note ?? '');
+  const [categoryId, setCategoryId] = useState(existing?.categoryId ?? params.category ?? '');
+  const [accountId, setAccountId] = useState(existing?.accountId ?? (params.account && data.accounts.some(a => a.id === params.account) ? params.account : lastUsed));
+  const [date, setDate] = useState(existing?.date ?? (params.date && /^\d{4}-\d{2}-\d{2}$/.test(params.date) ? params.date : todayISO()));
   const [time, setTime] = useState<string | null>(existing?.time ?? (isNew ? nowTime() : null));
-  const [photo, setPhoto] = useState<string | null>(existing?.photoUri ?? null);
+  const [photo, setPhoto] = useState<string | null>(existing?.photoUri ?? params.photo ?? null);
   const [tags, setTags] = useState<string[]>(safeJson<string[]>(existing?.tags, []));
   const [tripId, setTripId] = useState<string | null>(existing?.tripId ?? (isNew ? activeTrip?.id ?? null : null));
   const [repeat, setRepeat] = useState(false);
@@ -50,6 +52,8 @@ export default function Entry() {
 
   const value = useMemo(() => keypadValue(expr), [expr]);
   const accent = kind === 'income' ? c.income : c.spend;
+  const cur = curOf(special ? existing!.accountId : accountId);
+  const m = (v: number) => money(v, cur);
 
   const save = () => {
     setError(null);
@@ -75,8 +79,15 @@ export default function Entry() {
           kind: kind === 'income' ? 'income' : 'bill', amount: amt, accountId, toAccountId: null, categoryId: row.categoryId, frequency: freq,
           nextDue: advanceDue(freq, date), endDate: null, debtId: null, active: true, createdAt: nowMs() });
       }
-    }, isNew ? `${kind === 'income' ? 'Income' : 'Expense'} of ${peso(amt)} saved${repeat ? ', repeats' : ''}` : 'Saved changes');
+    }, isNew ? `${kind === 'income' ? 'Income' : 'Expense'} of ${m(amt)} saved${repeat ? ', repeats' : ''}` : 'Saved changes');
     if (ok) close();
+  };
+
+  const saveTemplate = () => {
+    const amt = Number.isFinite(value) && value > 0 ? Math.round(value * 100) : 0;
+    const name = note.trim() || data.categories.find(x => x.id === categoryId)?.name || (kind === 'income' ? 'Income' : 'Expense');
+    act(db => upsert.template(db, { id: uid(), name, type: kind, amount: amt, accountId: accountId || null, toAccountId: null, categoryId: categoryId || null,
+      note: note.trim(), tags: JSON.stringify(tags), sort: data.templates.length, createdAt: nowMs() }), `Template “${name}” saved. Find it under the + button.`);
   };
 
   const del = () => {
@@ -103,15 +114,15 @@ export default function Entry() {
         {special && existing!.type === 'adjust' ? (
           <Field label="Correction amount" big value={signedAmount} onChangeText={setSignedAmount} keyboardType="numbers-and-punctuation" hint="Use a minus sign for money that went missing." />
         ) : (
-          <Pressable onPress={() => setKeypadOpen(true)} accessibilityRole="button" accessibilityLabel={`Amount ${peso(Math.round(value * 100))}. Tap to edit`}
+          <Pressable onPress={() => setKeypadOpen(true)} accessibilityRole="button" accessibilityLabel={`Amount ${m(Math.round(value * 100))}. Tap to edit`}
             style={{ alignItems: 'center', paddingVertical: 14 }}>
             <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 4 }}>
-              <T v="numLg" color={expr ? accent : c.faint} style={{ fontSize: 26, marginTop: 10 }}>₱</T>
+              <T v="numLg" color={expr ? accent : c.faint} style={{ fontSize: 26, marginTop: 10 }}>{symbolOf(cur).trim()}</T>
               <T v="display" color={expr ? c.ink : c.faint} style={{ fontSize: 56, lineHeight: 64 }} numberOfLines={1}>
                 {expr ? (hasOperator(expr) ? expr : Number(value).toLocaleString('en-PH', { maximumFractionDigits: 2 })) : '0'}
               </T>
             </View>
-            {hasOperator(expr) ? <T v="medium" color={c.muted}>= {peso(Math.round(value * 100))}</T> : null}
+            {hasOperator(expr) ? <T v="medium" color={c.muted}>= {m(Math.round(value * 100))}</T> : null}
             <View style={{ width: 44, height: 4, borderRadius: 2, backgroundColor: keypadOpen ? accent : c.line, marginTop: 6 }} />
           </Pressable>
         )}
@@ -137,6 +148,7 @@ export default function Entry() {
             {repeat ? <Select label="Repeats" value={freq} options={FREQS} onChange={setFreq} /> : null}
           </View>
         ) : null}
+        {!special ? <Button variant="ghost" small icon="bookmark-plus-outline" label="Save as template" onPress={saveTemplate} /> : null}
         {existing?.deletedAt ? <Note tone="warn" icon="delete-clock-outline">This transaction is in Recently deleted. Restore it from there.</Note> : null}
         <ErrorText text={error} />
       </ScrollView>

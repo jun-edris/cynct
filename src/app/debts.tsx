@@ -13,9 +13,9 @@ type Dir = 'owe' | 'owed';
 export default function Debts() {
   const params = useLocalSearchParams<{ dir?: string }>();
   const { c } = useTheme();
-  const { data } = useData();
+  const { data, rtx } = useData();
   const [dir, setDir] = useState<Dir>(params.dir === 'owed' ? 'owed' : 'owe');
-  const rows = data.debts.filter(d => d.direction === dir).map(d => ({ d, s: debtStatus(d, data.transactions) }));
+  const rows = data.debts.filter(d => d.direction === dir).map(d => ({ d, s: debtStatus(d, rtx) }));
   const open = rows.filter(x => !x.d.closed);
   const closed = rows.filter(x => x.d.closed);
   const remaining = open.reduce((s, x) => s + x.s.remaining, 0);

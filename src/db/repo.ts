@@ -3,9 +3,9 @@
 import { and, eq, inArray, isNotNull, lt } from 'drizzle-orm';
 import type { BaseSQLiteDatabase, SQLiteTable } from 'drizzle-orm/sqlite-core';
 import {
-  schema, accounts, categories, transactions, budgets, recurring, installments, debts, goals, paymentMethods, tags, trips, notes, settings,
+  schema, accounts, categories, transactions, budgets, recurring, installments, debts, goals, paymentMethods, tags, trips, notes, rates, templates, settings,
   type Account, type Category, type Transaction, type Budget, type Recurring, type Installment, type Debt, type Goal, type PaymentMethod,
-  type Tag, type Trip, type Note,
+  type Tag, type Trip, type Note, type Rate, type Template,
 } from './schema';
 import { advanceDue } from '../lib/ledger';
 import { addMonths, todayISO, uid } from '../lib/money';
@@ -17,6 +17,7 @@ export type DB = BaseSQLiteDatabase<'sync', any, typeof schema>;
 export interface AllData {
   accounts: Account[]; categories: Category[]; transactions: Transaction[]; deleted: Transaction[]; budgets: Budget[]; recurring: Recurring[];
   installments: Installment[]; debts: Debt[]; goals: Goal[]; paymentMethods: PaymentMethod[]; tags: Tag[]; trips: Trip[]; notes: Note[];
+  rates: Rate[]; templates: Template[];
   settings: Record<string, unknown>;
 }
 
@@ -43,6 +44,8 @@ export function loadAll(db: DB): AllData {
     tags: db.select().from(tags).all().sort((a, b) => a.name.localeCompare(b.name)),
     trips: db.select().from(trips).all().sort((a, b) => b.startDate.localeCompare(a.startDate)),
     notes: db.select().from(notes).all().sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.updatedAt - a.updatedAt),
+    rates: db.select().from(rates).all().sort((a, b) => a.currency.localeCompare(b.currency)),
+    templates: db.select().from(templates).all().sort((a, b) => a.sort - b.sort || a.createdAt - b.createdAt),
     settings: s,
   };
 }
@@ -71,7 +74,7 @@ export function ensureDefaults(db: DB) {
 
 // ---------- generic upsert / delete ----------
 type TableWithId = typeof accounts | typeof categories | typeof transactions | typeof budgets | typeof recurring | typeof installments
-  | typeof debts | typeof goals | typeof paymentMethods | typeof tags | typeof trips | typeof notes;
+  | typeof debts | typeof goals | typeof paymentMethods | typeof tags | typeof trips | typeof notes | typeof templates;
 
 function upsertIn(db: DB, table: TableWithId, row: object) {
   (db.insert(table) as any).values(row).onConflictDoUpdate({ target: (table as any).id, set: row }).run();
@@ -91,13 +94,24 @@ export const upsert = {
   tag: (db: DB, r: Tag) => upsertIn(db, tags, r),
   trip: (db: DB, r: Trip) => upsertIn(db, trips, r),
   note: (db: DB, r: Note) => upsertIn(db, notes, r),
+  template: (db: DB, r: Template) => upsertIn(db, templates, r),
 };
+
+// ---------- exchange rates ----------
+/** perUnit = pesos for one unit of the currency, times 1,000,000. */
+export function setRate(db: DB, currency: string, perUnit: number, now = Date.now()) {
+  if (!(perUnit > 0)) throw new Error('Enter a rate above zero.');
+  const row = { currency, perUnit: Math.round(perUnit), updatedAt: now };
+  db.insert(rates).values(row).onConflictDoUpdate({ target: rates.currency, set: row }).run();
+}
+export function removeRate(db: DB, currency: string) { db.delete(rates).where(eq(rates.currency, currency)).run(); }
 
 export const remove = {
   budget: (db: DB, id: string) => db.delete(budgets).where(eq(budgets.id, id)).run(),
   recurring: (db: DB, id: string) => db.delete(recurring).where(eq(recurring.id, id)).run(),
   paymentMethod: (db: DB, id: string) => db.delete(paymentMethods).where(eq(paymentMethods.id, id)).run(),
   note: (db: DB, id: string) => db.delete(notes).where(eq(notes.id, id)).run(),
+  template: (db: DB, id: string) => db.delete(templates).where(eq(templates.id, id)).run(),
   trip: (db: DB, id: string) => db.transaction(tx => {
     tx.update(transactions).set({ tripId: null }).where(eq(transactions.tripId, id)).run();
     tx.delete(trips).where(eq(trips.id, id)).run();
@@ -168,7 +182,7 @@ export function saveAccount(db: DB, account: Account, correction: number) {
 export function newTx(p: Partial<Transaction> & Pick<Transaction, 'type' | 'amount' | 'date'>): Transaction {
   const now = Date.now();
   return {
-    id: uid(), fee: 0, accountId: null, toAccountId: null, categoryId: null, time: null, note: '', counterparty: null, heldFor: null, photoUri: null,
+    id: uid(), fee: 0, toAmount: null, accountId: null, toAccountId: null, categoryId: null, time: null, note: '', counterparty: null, heldFor: null, photoUri: null,
     tags: '[]', recurringId: null, installmentId: null, debtId: null, debtRole: null, goalId: null, tripId: null, deletedAt: null,
     createdAt: now, updatedAt: now, ...p,
   };
@@ -291,6 +305,8 @@ const ORDER: { name: ListKey; table: SQLiteTable }[] = [
   { name: 'tags', table: tags },
   { name: 'trips', table: trips },
   { name: 'notes', table: notes },
+  { name: 'rates', table: rates },
+  { name: 'templates', table: templates },
 ];
 
 function orderCategories(cats: Category[]): Category[] {
@@ -301,7 +317,7 @@ function orderCategories(cats: Category[]): Category[] {
 
 type Lists = { [K in ListKey]: AllData[K] };
 const emptyLists = (): Lists => ({ categories: [], accounts: [], transactions: [], budgets: [], recurring: [], installments: [], debts: [], goals: [],
-  paymentMethods: [], tags: [], trips: [], notes: [] });
+  paymentMethods: [], tags: [], trips: [], notes: [], rates: [], templates: [] });
 
 function replaceAllIn(db: DB, data: Partial<Lists>, settingsObj: Record<string, unknown>) {
   db.transaction(tx => {
@@ -325,8 +341,9 @@ export function applyPwaImport(db: DB, p: PwaImport) {
     recurring: p.recurring, goals: p.goals }, p.settings);
 }
 
+// Kept from when the app was called Bahay so every existing backup still restores.
 export const BACKUP_APP = 'bahay-native';
-export const BACKUP_VERSION = 2;
+export const BACKUP_VERSION = 3;
 
 export function exportAll(db: DB) {
   const d = loadAll(db);
@@ -335,8 +352,8 @@ export function exportAll(db: DB) {
 
 export function importAll(db: DB, raw: unknown): number {
   const d = raw as Record<string, unknown> | null;
-  if (!d || d.app !== BACKUP_APP) throw new Error('This file is not a Bahay app backup.');
-  if (typeof d.version !== 'number' || d.version > BACKUP_VERSION) throw new Error('This backup is from a newer version of Bahay. Update the app first.');
+  if (!d || d.app !== BACKUP_APP) throw new Error('This file is not a Cynct backup.');
+  if (typeof d.version !== 'number' || d.version > BACKUP_VERSION) throw new Error('This backup is from a newer version of Cynct. Update the app first.');
   for (const { name } of ORDER) if (d[name] !== undefined && !Array.isArray(d[name])) throw new Error(`Backup is damaged: "${name}" is not a list.`);
   const s = (d.settings && typeof d.settings === 'object' ? d.settings : {}) as Record<string, unknown>;
   // Device-specific settings don't travel with a backup.

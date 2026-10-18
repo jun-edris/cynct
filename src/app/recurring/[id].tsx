@@ -15,7 +15,7 @@ const FREQS = ['once', 'monthly', 'semimonthly', 'weekly', 'quarterly', 'yearly'
 
 export default function RecurringScreen() {
   const params = useLocalSearchParams<{ id: string; kind?: string; debtId?: string }>();
-  const { data, act } = useData();
+  const { data, act, rtx } = useData();
   const pay = usePayUpcoming();
   const r = data.recurring.find(x => x.id === params.id);
   const presetDebt = params.debtId ? data.debts.find(d => d.id === params.debtId) : undefined;
@@ -38,7 +38,7 @@ export default function RecurringScreen() {
   const catOptions = useCategoryOptions(kind === 'income' ? 'income' : 'expense');
   const debtDir = kind === 'income' ? 'owed' : 'owe';
   const debtOptions = [{ value: '', label: 'Not linked' },
-    ...data.debts.filter(d => d.direction === debtDir && (!d.closed || d.id === debtId)).map(d => ({ value: d.id, label: `${d.person} · ${peso(debtStatus(d, data.transactions).remaining, { cents: false })} left`, icon: 'hand-coin-outline' }))];
+    ...data.debts.filter(d => d.direction === debtDir && (!d.closed || d.id === debtId)).map(d => ({ value: d.id, label: `${d.person} · ${peso(debtStatus(d, rtx).remaining, { cents: false })} left`, icon: 'hand-coin-outline' }))];
   const history = r ? data.transactions.filter(t => t.recurringId === r.id) : [];
 
   const save = () => {

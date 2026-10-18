@@ -243,6 +243,28 @@ export const MIGRATIONS: string[] = [
     updated_at INTEGER NOT NULL
   );
   `,
+  // v3 — Build 2: cross-currency transfers, exchange rates, entry templates
+  `
+  ALTER TABLE transactions ADD COLUMN to_amount INTEGER CHECK (to_amount IS NULL OR to_amount > 0);
+  CREATE TABLE rates (
+    currency TEXT PRIMARY KEY NOT NULL,
+    per_unit INTEGER NOT NULL CHECK (per_unit > 0),
+    updated_at INTEGER NOT NULL
+  );
+  CREATE TABLE templates (
+    id TEXT PRIMARY KEY NOT NULL,
+    name TEXT NOT NULL,
+    type TEXT NOT NULL CHECK (type IN ('expense','income','transfer')),
+    amount INTEGER NOT NULL DEFAULT 0 CHECK (amount >= 0),
+    account_id TEXT REFERENCES accounts(id) ON DELETE SET NULL,
+    to_account_id TEXT REFERENCES accounts(id) ON DELETE SET NULL,
+    category_id TEXT REFERENCES categories(id) ON DELETE SET NULL,
+    note TEXT NOT NULL DEFAULT '',
+    tags TEXT NOT NULL DEFAULT '[]',
+    sort INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL
+  );
+  `,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;
@@ -259,7 +281,7 @@ export function migrate(db: MigratableDb): number {
   db.exec('PRAGMA foreign_keys = ON;');
   let version = db.getUserVersion();
   if (version > SCHEMA_VERSION) {
-    throw new Error(`Database is from a newer version of Bahay (v${version}). Update the app.`);
+    throw new Error(`Database is from a newer version of Cynct (v${version}). Update the app.`);
   }
   while (version < SCHEMA_VERSION) {
     const sql = MIGRATIONS[version];

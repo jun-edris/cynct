@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Text, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { AppState, Text, View } from 'react-native';
 import { Stack, SplashScreen } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -15,6 +15,9 @@ import { Toast } from '../components/domain';
 import { runDailyBackup } from '../lib/backup';
 import { pendingInterest } from '../lib/ledger';
 import { todayISO } from '../lib/money';
+import { useRefreshRates, type FxCache } from '../data/actions';
+import { STALE_AFTER_MS } from '../lib/fxrates';
+import { BASE } from '../lib/currency';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -60,9 +63,38 @@ export default function RootLayout() {
   );
 }
 
+/** Keeps exchange rates fresh: on launch and whenever the app comes back, if they're older than a few hours. Silent when offline. */
+function AutoRates() {
+  const { data } = useData();
+  const refresh = useRefreshRates();
+  const latest = useRef({ data, refresh });
+  const busy = useRef(false);
+  const checkRef = useRef<() => void>(() => {});
+  useEffect(() => { latest.current = { data, refresh }; }, [data, refresh]);
+  useEffect(() => {
+    const check = () => {
+      const { data: d, refresh: run } = latest.current;
+      if (busy.current || !d.settings.setupDone || d.settings.autoRates === false) return;
+      const usesForeign = d.rates.length > 0 || d.accounts.some(a => !a.archived && a.currency !== BASE);
+      const fx = d.settings.fx as FxCache | undefined;
+      if (!usesForeign || (fx && Date.now() - fx.fetchedAt < STALE_AFTER_MS)) return;
+      busy.current = true;
+      run().catch(() => {}).finally(() => { busy.current = false; });
+    };
+    checkRef.current = check;
+    check();
+    const sub = AppState.addEventListener('change', s => { if (s === 'active') check(); });
+    return () => sub.remove();
+  }, []);
+  // Adding the first account in another currency fetches rates right away.
+  const foreign = data.accounts.some(a => !a.archived && a.currency !== BASE);
+  useEffect(() => { if (foreign) checkRef.current(); }, [foreign]);
+  return null;
+}
+
 function Shell() {
   const { c, dark } = useTheme();
-  const { db, data, reload, toast } = useData();
+  const { db, data, rtx, reload, toast } = useData();
 
   useEffect(() => {
     if (!data.settings.setupDone) return;
@@ -70,7 +102,7 @@ function Shell() {
     let credited = 0;
     for (const g of data.goals) {
       if (g.archived || g.annualRate <= 0) continue;
-      const entries = pendingInterest({ ...g, annualRate: g.annualRate / 10_000, createdDate: todayISO(new Date(g.createdAt)) }, data.transactions);
+      const entries = pendingInterest({ ...g, annualRate: g.annualRate / 10_000, createdDate: todayISO(new Date(g.createdAt)) }, rtx);
       if (entries.length) { creditInterest(db, g, entries); credited += entries.reduce((s, e) => s + e.amount, 0); }
     }
     if (credited) reload();
@@ -84,6 +116,7 @@ function Shell() {
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
       <StatusBar style={dark ? 'light' : 'dark'} />
+      <AutoRates />
       <LockGate>
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: c.bg }, animation: 'slide_from_right' }}>
           <Stack.Screen name="(tabs)" />

@@ -8,11 +8,12 @@ import { Hills, TxRow, useAccountOptions } from '../../components/domain';
 import { goalProgress } from '../../lib/ledger';
 import { compactPeso, dayLabel, peso, toCentavos, todayISO } from '../../lib/money';
 import { goalMove, remove, softDelete } from '../../db/repo';
+import { toBase } from '../../lib/currency';
 
 export default function GoalDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { c, dark } = useTheme();
-  const { data, balances, act, accById, toast } = useData();
+  const { data, baseBalances, rtx, act, accById, toast, fmt, curOf, rates } = useData();
   const g = data.goals.find(x => x.id === id);
   const [move, setMove] = useState<'in' | 'out' | null>(null);
   const [amount, setAmount] = useState('');
@@ -23,7 +24,7 @@ export default function GoalDetail() {
   if (!g) return <Screen title="Goal" back><Empty title="This goal no longer exists" /></Screen>;
 
   const linked = safeJson<string[]>(g.accountIds, []);
-  const p = goalProgress({ ...g, annualRate: g.annualRate / 10_000, accountIds: linked }, balances, data.transactions);
+  const p = goalProgress({ ...g, annualRate: g.annualRate / 10_000, accountIds: linked }, baseBalances, rtx);
   const log = data.transactions.filter(t => t.goalId === g.id);
   const perAccount = new Map<string, { in: number; out: number }>();
   for (const t of log) {
@@ -39,7 +40,8 @@ export default function GoalDetail() {
     const amt = toCentavos(amount);
     if (!(amt > 0)) return setError('Enter an amount.');
     if (!accountId) return setError('Pick an account.');
-    if (move === 'out' && amt > p.fund) return setError(`Only ${peso(p.fund)} is held inside this goal.`);
+    // Goal funds are tracked in pesos; an account in another currency is compared at your rate.
+    if (move === 'out' && toBase(amt, curOf(accountId), rates) > p.fund) return setError(`Only ${peso(p.fund)} is held inside this goal.`);
     const kind = move!;
     let txId = '';
     if (act(db => { txId = goalMove(db, g, kind, accountId, amt, date).id; }, kind === 'in' ? `Added ${peso(amt)} to ${g.name}` : `Withdrew ${peso(amt)}`,
@@ -104,8 +106,8 @@ export default function GoalDetail() {
         <Section title="By account">
           <List>{[...perAccount.entries()].map(([aid, v]) => {
             const a = accById.get(aid);
-            return <Row key={aid} icon={a?.icon ?? 'wallet'} iconColor={a?.color} title={a?.name ?? 'Account'} sub={`Added ${peso(v.in)} · withdrew ${peso(v.out)}`}
-              right={<T v="num">{peso(v.in - v.out)}</T>} />;
+            return <Row key={aid} icon={a?.icon ?? 'wallet'} iconColor={a?.color} title={a?.name ?? 'Account'} sub={`Added ${fmt(v.in, aid)} · withdrew ${fmt(v.out, aid)}`}
+              right={<T v="num">{fmt(v.in - v.out, aid)}</T>} />;
           })}</List>
         </Section>
       ) : null}

@@ -13,7 +13,7 @@ import { FREQ_LABEL, PARTY_LABEL } from '../../lib/labels';
 export default function DebtDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { c } = useTheme();
-  const { data, act } = useData();
+  const { data, act, rtx } = useData();
   const d = data.debts.find(x => x.id === id);
   const [sheet, setSheet] = useState<'pay' | 'borrow' | null>(null);
   const [amount, setAmount] = useState('');
@@ -26,7 +26,7 @@ export default function DebtDetail() {
   if (!d) return <Screen title="Debt" back><Empty title="This record no longer exists" /></Screen>;
 
   const owe = d.direction === 'owe';
-  const s = debtStatus(d, data.transactions);
+  const s = debtStatus(d, rtx);
   const history = data.transactions.filter(t => t.debtId === d.id);
   const plans = data.recurring.filter(r => r.debtId === d.id);
   const tone = owe ? c.spend : c.income;

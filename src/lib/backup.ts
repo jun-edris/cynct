@@ -19,7 +19,8 @@ export function listLocalBackups(): { name: string; uri: string }[] {
   return dir.list()
     .filter((f): f is File => f instanceof File && f.name.endsWith('.json'))
     .map(f => ({ name: f.name, uri: f.uri }))
-    .sort((a, b) => b.name.localeCompare(a.name));
+    // Newest first by date; older files are named bahay-YYYY-MM-DD, newer ones cynct-YYYY-MM-DD.
+    .sort((a, b) => b.name.replace(/^[a-z]+-/, '').localeCompare(a.name.replace(/^[a-z]+-/, '')));
 }
 
 /** Writes today's backup if there isn't one yet. Safe to call on every app open. */
@@ -30,7 +31,7 @@ export async function runDailyBackup(db: DB, settings: Record<string, unknown>):
 
   const dir = backupDir();
   dir.create({ idempotent: true, intermediates: true });
-  const file = new File(dir, `bahay-${today}.json`);
+  const file = new File(dir, `cynct-${today}.json`);
   if (file.exists) file.delete();
   file.create();
   await file.write(json);
@@ -39,7 +40,7 @@ export async function runDailyBackup(db: DB, settings: Record<string, unknown>):
   let folderError: string | undefined;
   const folder = settings.backupFolderUri as string | undefined;
   if (folder) {
-    try { await writeToFolder(folder, `bahay-${today}`, json); }
+    try { await writeToFolder(folder, `cynct-${today}`, json); }
     catch { folderError = 'Couldn’t write to your backup folder. Pick it again in Settings.'; }
   }
   setSetting(db, 'lastAutoBackup', today);
@@ -58,18 +59,18 @@ async function writeToFolder(folderUri: string, baseName: string, json: string) 
 export async function pickBackupFolder(db: DB): Promise<boolean> {
   const res = await Legacy.StorageAccessFramework.requestDirectoryPermissionsAsync();
   if (!res.granted) return false;
-  await writeToFolder(res.directoryUri, `bahay-${todayISO()}`, backupJson(db));
+  await writeToFolder(res.directoryUri, `cynct-${todayISO()}`, backupJson(db));
   setSetting(db, 'backupFolderUri', res.directoryUri);
   return true;
 }
 
 export async function shareBackup(db: DB) {
-  const file = new File(Paths.cache, `bahay-backup-${todayISO()}.json`);
+  const file = new File(Paths.cache, `cynct-backup-${todayISO()}.json`);
   if (file.exists) file.delete();
   file.create();
   await file.write(backupJson(db));
   if (!(await Sharing.isAvailableAsync())) throw new Error('Sharing isn’t available on this device.');
-  await Sharing.shareAsync(file.uri, { mimeType: 'application/json', dialogTitle: 'Save Bahay backup' });
+  await Sharing.shareAsync(file.uri, { mimeType: 'application/json', dialogTitle: 'Save Cynct backup' });
   setSetting(db, 'lastManualBackup', Date.now());
 }
 

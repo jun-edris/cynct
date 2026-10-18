@@ -16,18 +16,18 @@ function greeting(d = new Date()) {
 
 export default function Home() {
   const { c, dark } = useTheme();
-  const { data, balances, cats, goalFunds } = useData();
+  const { data, baseBalances, rtx, cats, goalFunds, plannedBase, missing } = useData();
   const pay = usePayUpcoming();
   const today = todayISO();
-  const nw = netWorth(data.accounts, balances, goalFunds);
+  const nw = netWorth(data.accounts, baseBalances, goalFunds);
   const { start, end } = monthRange(monthKey(today));
-  const month = summarize(data.transactions, start, end, cats);
-  const day = summarize(data.transactions, today, today, cats);
+  const month = summarize(rtx, start, end, cats);
+  const day = summarize(rtx, today, today, cats);
   const st = streak(data.transactions, today);
   const goal = data.goals.find(g => !g.archived);
-  const soon = upcoming(data.recurring, data.installments.filter(i => i.paidCount < i.months), today, 14).slice(0, 5);
+  const soon = upcoming(plannedBase.recurring, plannedBase.installments.filter(i => i.paidCount < i.months), today, 14).slice(0, 5);
   const recent = data.transactions.filter(t => t.date <= today).slice(0, 6);
-  const budgets = data.budgets.filter(b => b.kind !== 'income').map(b => ({ b, s: budgetStatus(b, data.transactions, cats, today) }))
+  const budgets = data.budgets.filter(b => b.kind !== 'income').map(b => ({ b, s: budgetStatus(b, rtx, cats, today) }))
     .sort((x, y) => y.s.pct - x.s.pct).slice(0, 3);
   const pinned = data.notes.find(n => n.pinned);
   const hasFolder = !!data.settings.backupFolderUri;
@@ -72,6 +72,13 @@ export default function Home() {
         <StatTile label="Spent" value={compactPeso(month.expense)} color={c.spend} />
       </View>
 
+      {missing.length ? (
+        <Card style={{ marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.warnSoft }} onPress={() => router.push('/currencies')}>
+          <Icon name="currency-usd-off" color={c.warn} />
+          <T v="medium" style={{ flex: 1 }}>{`Set a ${missing.join(', ')} rate so those accounts count in your totals.`}</T>
+          <Icon name="chevron-right" color={c.warn} />
+        </Card>
+      ) : null}
       {needsBackup ? (
         <Card style={{ marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.warnSoft }} onPress={() => router.push('/settings')}>
           <Icon name="cloud-alert" color={c.warn} />
@@ -81,7 +88,7 @@ export default function Home() {
       ) : null}
 
       {goal ? (() => {
-        const g = goalProgress({ ...goal, annualRate: goal.annualRate / 10_000, accountIds: safeJson<string[]>(goal.accountIds, []) }, balances, data.transactions, today);
+        const g = goalProgress({ ...goal, annualRate: goal.annualRate / 10_000, accountIds: safeJson<string[]>(goal.accountIds, []) }, baseBalances, rtx, today);
         return (
           <Section title="Goal" action="All goals" onAction={() => router.push('/goals')}>
             <Block tone="navy" style={{ paddingBottom: 0, paddingHorizontal: 0 }} onPress={() => router.push(`/goal/${goal.id}`)}>

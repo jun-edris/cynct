@@ -5,18 +5,18 @@ import { useData } from '../data/DataContext';
 import { useTheme } from '../theme';
 import { Button, Empty, IconBubble, List, Row, Screen, Section, Segmented, StatTile, T } from '../components/ui';
 import { dueStatus, monthlyEquivalent } from '../lib/ledger';
-import { compactPeso, dayLabel, peso } from '../lib/money';
+import { compactPeso, dayLabel } from '../lib/money';
 import { FREQ_LABEL } from '../lib/labels';
 
 type Filter = 'all' | 'bill' | 'income';
 
 export default function Planned() {
   const { c } = useTheme();
-  const { data, catById } = useData();
+  const { data, catById, fmt, plannedBase } = useData();
   const [filter, setFilter] = useState<Filter>('all');
   const list = data.recurring.filter(r => filter === 'all' || (filter === 'income' ? r.kind === 'income' : r.kind !== 'income'))
     .sort((a, b) => Number(b.active) - Number(a.active) || a.nextDue.localeCompare(b.nextDue));
-  const active = data.recurring.filter(r => r.active);
+  const active = plannedBase.recurring.filter(r => r.active);
   const monthlyOut = active.filter(r => r.kind === 'bill' && r.frequency !== 'once').reduce((s, r) => s + monthlyEquivalent(r.amount, r.frequency), 0);
   const monthlyIn = active.filter(r => r.kind === 'income' && r.frequency !== 'once').reduce((s, r) => s + monthlyEquivalent(r.amount, r.frequency), 0);
   const recurringCount = active.filter(r => r.frequency !== 'once').length;
@@ -34,7 +34,7 @@ export default function Planned() {
         sub={<T v="small" color={st === 'overdue' ? c.spend : st === 'today' ? c.warn : undefined}>
           {r.active ? `${FREQ_LABEL[r.frequency] ?? r.frequency} · ${st === 'overdue' ? 'overdue since' : 'next'} ${dayLabel(r.nextDue)}` : r.frequency === 'once' ? 'Done' : 'Paused'}
         </T>}
-        right={<T v="num" color={r.kind === 'income' ? c.income : c.ink}>{r.kind === 'income' ? '+' : ''}{peso(r.amount, { cents: false })}</T>} />
+        right={<T v="num" color={r.kind === 'income' ? c.income : c.ink}>{r.kind === 'income' ? '+' : ''}{fmt(r.amount, r.accountId, { cents: false })}</T>} />
     );
   };
 

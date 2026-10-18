@@ -4,7 +4,8 @@ import { Redirect, Tabs, router, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useData } from '../../data/DataContext';
 import { fonts, radius, useTheme } from '../../theme';
-import { Icon, IconBubble, Sheet, T } from '../../components/ui';
+import { Chip, Icon, IconBubble, Sheet, T } from '../../components/ui';
+import { useApplyTemplate } from '../../data/actions';
 
 const TABS = [
   { path: '/', label: 'Home', icon: 'home-variant-outline', on: 'home-variant' },
@@ -15,12 +16,16 @@ const TABS = [
 
 function AddMenu({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { c } = useTheme();
+  const { data } = useData();
+  const apply = useApplyTemplate();
   const go = (href: Parameters<typeof router.push>[0]) => { onClose(); setTimeout(() => router.push(href), 60); };
   const tiles: { label: string; sub: string; icon: string; color: string; onPress: () => void }[] = [
     { label: 'Expense', sub: 'Money you spent', icon: 'arrow-up', color: c.spend, onPress: () => go({ pathname: '/tx/[id]', params: { id: 'new', type: 'expense' } }) },
     { label: 'Income', sub: 'Money you earned', icon: 'arrow-down', color: c.income, onPress: () => go({ pathname: '/tx/[id]', params: { id: 'new', type: 'income' } }) },
     { label: 'Transfer', sub: 'Between accounts or people', icon: 'swap-horizontal', color: c.info, onPress: () => go({ pathname: '/transfer/[id]', params: { id: 'new' } }) },
     { label: 'Type it', sub: '“lunch 180 gcash”', icon: 'message-text-outline', color: c.mango, onPress: () => go('/quick') },
+    { label: 'Scan receipt', sub: 'Reads the total for you', icon: 'line-scan', color: '#8B6CFF', onPress: () => go('/scan') },
+    { label: 'Templates', sub: data.templates.length ? `${data.templates.length} saved` : 'One-tap repeat entries', icon: 'bookmark-outline', color: '#FF5C8A', onPress: () => go('/templates') },
   ];
   return (
     <Sheet visible={open} onClose={onClose} title="Add">
@@ -33,10 +38,15 @@ function AddMenu({ open, onClose }: { open: boolean; onClose: () => void }) {
           </Pressable>
         ))}
       </View>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: c.sunk, borderRadius: radius.md, padding: 14, marginTop: 4 }}>
-        <Icon name="receipt-text-outline" color={c.muted} />
-        <T v="small" style={{ flex: 1 }}>Receipt scanning arrives in the next build.</T>
-      </View>
+      {data.templates.length ? (
+        <View style={{ gap: 8, marginTop: 6 }}>
+          <T v="label">Quick add</T>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            {data.templates.slice(0, 8).map(t => <Chip key={t.id} icon={t.type === 'income' ? 'arrow-down' : t.type === 'transfer' ? 'swap-horizontal' : 'arrow-up'} label={t.name}
+              onPress={() => { onClose(); setTimeout(() => apply(t.id), 60); }} />)}
+          </View>
+        </View>
+      ) : null}
     </Sheet>
   );
 }

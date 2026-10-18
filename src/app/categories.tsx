@@ -9,10 +9,10 @@ import { addMonths, peso, todayISO } from '../lib/money';
 
 export default function Categories() {
   const { c } = useTheme();
-  const { data, cats } = useData();
+  const { data, cats, rtx } = useData();
   const [kind, setKind] = useState<'expense' | 'income'>('expense');
   const today = todayISO();
-  const last90 = summarize(data.transactions, addMonths(today, -3), today, cats);
+  const last90 = summarize(rtx, addMonths(today, -3), today, cats);
   const roots = data.categories.filter(x => x.kind === kind && !x.parentId);
   const budgetFor = (id: string) => data.budgets.find(b => b.categoryId === id);
 

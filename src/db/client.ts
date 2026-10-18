@@ -5,6 +5,7 @@ import { migrate } from './migrations';
 import { schema } from './schema';
 import type { DB } from './repo';
 
+// The file keeps its original name: renaming it would hide everyone’s existing data.
 export const DB_NAME = 'bahay.db';
 
 /**

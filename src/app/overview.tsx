@@ -11,21 +11,21 @@ import { ACCOUNT_TYPES } from '../lib/seed';
 
 export default function Overview() {
   const { c } = useTheme();
-  const { data, balances, goalFunds } = useData();
+  const { data, baseBalances: balances, balances: native, rtx, plannedBase, goalFunds, fmt } = useData();
   const today = todayISO();
   const nw = netWorth(data.accounts, balances, goalFunds);
   const accounts = data.accounts.filter(a => !a.archived);
   const cash = accounts.filter(a => !isLiability(a.type)).reduce((s, a) => s + (balances.get(a.id) ?? 0), 0);
   const cards = accounts.filter(a => isLiability(a.type)).reduce((s, a) => s + Math.max(0, -(balances.get(a.id) ?? 0)), 0);
   const open = data.debts.filter(d => !d.closed);
-  const owe = open.filter(d => d.direction === 'owe').map(d => ({ d, s: debtStatus(d, data.transactions) }));
-  const owed = open.filter(d => d.direction === 'owed').map(d => ({ d, s: debtStatus(d, data.transactions) }));
+  const owe = open.filter(d => d.direction === 'owe').map(d => ({ d, s: debtStatus(d, rtx) }));
+  const owed = open.filter(d => d.direction === 'owed').map(d => ({ d, s: debtStatus(d, rtx) }));
   const oweTotal = owe.reduce((s, x) => s + x.s.remaining, 0);
   const owedTotal = owed.reduce((s, x) => s + x.s.remaining, 0);
   // Net position = everything you have (incl. goals and money owed to you) minus every card, loan and debt.
   const position = nw.net + owedTotal - oweTotal;
-  const f = forecast({ accounts: data.accounts, balances, txs: data.transactions, recurring: data.recurring,
-    installments: data.installments.filter(i => i.paidCount < i.months), debts: data.debts }, today, 60);
+  const f = forecast({ accounts: data.accounts, balances, txs: rtx, recurring: plannedBase.recurring,
+    installments: plannedBase.installments.filter(i => i.paidCount < i.months), debts: data.debts }, today, 60);
   const nextOut = f.items.find(i => i.direction === 'out');
   const nextIn = f.items.find(i => i.direction === 'in');
 
@@ -55,9 +55,9 @@ export default function Overview() {
 
       <Section title="Accounts" action="Wallet" onAction={() => router.push('/wallet')}>
         {accounts.length ? <List>{accounts.map(a => {
-          const b = balances.get(a.id) ?? 0;
+          const b = native.get(a.id) ?? 0;
           return <Row key={a.id} left={<IconBubble icon={a.icon} color={a.color} />} title={a.name} sub={ACCOUNT_TYPES[a.type]} onPress={() => router.push(`/account/${a.id}`)}
-            right={<T v="num" color={b < 0 ? c.spend : c.ink}>{peso(b, { cents: false })}</T>} />;
+            right={<T v="num" color={b < 0 ? c.spend : c.ink}>{fmt(b, a.id, { cents: false })}</T>} />;
         })}</List> : <Empty title="No accounts" />}
       </Section>
 

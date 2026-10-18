@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Logo } from './Logo';
 import { AppState, View } from 'react-native';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { useData } from '../data/DataContext';
 import { useTheme } from '../theme';
-import { Button, IconBubble, T } from './ui';
+import { Button, T } from './ui';
 
 const RELOCK_AFTER_MS = 60_000;
 
@@ -22,7 +23,7 @@ export function LockGate({ children }: { children: React.ReactNode }) {
     busy.current = true;
     setError(null);
     try {
-      const res = await LocalAuthentication.authenticateAsync({ promptMessage: 'Unlock Bahay', cancelLabel: 'Cancel' });
+      const res = await LocalAuthentication.authenticateAsync({ promptMessage: 'Unlock Cynct', cancelLabel: 'Cancel' });
       if (res.success) setLocked(false);
       else if (res.error !== 'user_cancel' && res.error !== 'system_cancel') setError('Didn’t work. Try again.');
     } finally { busy.current = false; }
@@ -42,8 +43,8 @@ export function LockGate({ children }: { children: React.ReactNode }) {
   if (!enabled || !locked) return <>{children}</>;
   return (
     <View style={{ flex: 1, backgroundColor: c.navy, alignItems: 'center', justifyContent: 'center', gap: 16, padding: 32 }}>
-      <IconBubble icon="lock" color={c.mango} size={72} solid />
-      <T v="title" color={c.navyText}>Bahay is locked</T>
+      <Logo size={84} />
+      <T v="title" color={c.navyText}>Cynct is locked</T>
       {error ? <T v="small" color={c.spend}>{error}</T> : null}
       <Button label="Unlock" icon="fingerprint" onPress={unlock} />
     </View>

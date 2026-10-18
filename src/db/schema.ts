@@ -39,6 +39,8 @@ export const transactions = sqliteTable('transactions', {
   type: text('type').notNull(),
   amount: integer('amount').notNull(), // positive, except adjust which is signed
   fee: integer('fee').notNull().default(0), // transfers and outside sends; counted as spending under Fees
+  // Transfers between accounts in different currencies: what arrived, in the destination's currency. Null = same as amount.
+  toAmount: integer('to_amount'),
   accountId: text('account_id'), // null only for goal interest and off-wallet debt entries
   toAccountId: text('to_account_id'),
   categoryId: text('category_id'),
@@ -176,6 +178,27 @@ export const notes = sqliteTable('notes', {
   updatedAt: integer('updated_at').notNull(),
 });
 
+// One row per foreign currency: how many pesos one unit is worth, times 1,000,000 (58.25 → 58_250_000).
+export const rates = sqliteTable('rates', {
+  currency: text('currency').primaryKey(),
+  perUnit: integer('per_unit').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+});
+
+export const templates = sqliteTable('templates', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  type: text('type').notNull(), // expense | income | transfer
+  amount: integer('amount').notNull().default(0), // 0 = ask each time
+  accountId: text('account_id'),
+  toAccountId: text('to_account_id'),
+  categoryId: text('category_id'),
+  note: text('note').notNull().default(''),
+  tags: text('tags').notNull().default('[]'),
+  sort: integer('sort').notNull().default(0),
+  createdAt: integer('created_at').notNull(),
+});
+
 export const settings = sqliteTable('settings', {
   key: text('key').primaryKey(),
   value: text('value').notNull(), // JSON
@@ -193,5 +216,7 @@ export type PaymentMethod = typeof paymentMethods.$inferSelect;
 export type Tag = typeof tags.$inferSelect;
 export type Trip = typeof trips.$inferSelect;
 export type Note = typeof notes.$inferSelect;
+export type Rate = typeof rates.$inferSelect;
+export type Template = typeof templates.$inferSelect;
 
-export const schema = { accounts, categories, transactions, budgets, recurring, installments, debts, goals, paymentMethods, tags, trips, notes, settings };
+export const schema = { accounts, categories, transactions, budgets, recurring, installments, debts, goals, paymentMethods, tags, trips, notes, rates, templates, settings };

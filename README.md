@@ -1,4 +1,6 @@
-# Bahay (Android)
+# Cynct (Android)
+
+Cynct = cent + sync. Formerly Bahay; the Android package id (`com.junaire.bahay`), EAS slug, database file (`bahay.db`) and backup format id keep the old name on purpose so the app updates in place and every old backup restores.
 
 Offline budget and expense tracker. Expo SDK 58, React Native, TypeScript, SQLite (expo-sqlite) with Drizzle ORM.
 No accounts, no servers: everything lives in `bahay.db` on the phone.
@@ -65,6 +67,17 @@ It's only for screenshots and quick UI checks; nothing persists there, and backu
 - Goals hold their own money: "Add money" moves it out of an account into the goal (`goal_in`), "Withdraw" moves it back. Monthly interest is credited on launch for finished months. A goal can also count linked account balances.
 - Deleting an entry moves it to Recently deleted for 30 days.
 
-## Build 2 (not in this build)
+## Build 2
 
-Receipt scanning (on-device ML Kit), multi-currency, extra calculators and templates.
+- **Multi-currency.** Each account has a currency (set when created; locked once it has entries). Amounts are stored in that currency.
+  Totals, budgets, goals, debts and the forecast convert to pesos using rates in Currencies (`rates` table, pesos per unit × 1,000,000).
+  A missing rate counts that account as ₱0 and shows a warning. A transfer between currencies stores what arrived in `to_amount`.
+  Live rates come from FXRatesAPI (no key; falls back to open.er-api.com), refreshed on launch when older than 6 hours and on demand
+  (`src/lib/fxrates.ts`, `useRefreshRates`). The full table is cached in settings (`fx`) for the converter and offline use; a rate you
+  set by hand and mark "Keep my rate" (`pinnedRates`) is never overwritten.
+- **Receipt scan** (`src/app/scan.tsx`, `src/lib/receipt.ts`): `expo-text-extractor` (Google ML Kit on Android) reads the photo on the phone;
+  the parser picks total, date, store and a category guess, and lists every amount so a wrong guess is one tap to fix.
+  ML Kit's text model comes through Google Play services and downloads once on first use.
+- **Templates**: saved entries under the + button. With an amount and account they record in one tap; otherwise they open the entry screen prefilled.
+- **Calculators** (`src/app/tools/`, `src/lib/finance.ts`): loan (reducing balance or add-on rate, with its true yearly cost), savings, split the bill.
+- Database v3 (`MIGRATIONS[2]`) adds `transactions.to_amount`, `rates`, `templates`. Backups are version 3; version 2 backups still restore.

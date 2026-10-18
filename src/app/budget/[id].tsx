@@ -14,7 +14,7 @@ const PERIODS: [Period, string][] = [['daily', 'Daily'], ['weekly', 'Weekly'], [
 export default function BudgetScreen() {
   const { id, kind: kindParam } = useLocalSearchParams<{ id: string; kind?: string }>();
   const { c } = useTheme();
-  const { data, act, cats } = useData();
+  const { data, act, cats, rtx } = useData();
   const b = data.budgets.find(x => x.id === id);
   const [kind, setKind] = useState<'expense' | 'income'>((b?.kind ?? kindParam) === 'income' ? 'income' : 'expense');
   const [categoryId, setCategoryId] = useState(b?.categoryId ?? '');
@@ -24,7 +24,7 @@ export default function BudgetScreen() {
   const [rollover, setRollover] = useState(b?.rollover ?? false);
   const [error, setError] = useState<string | null>(null);
   const options = [{ value: '', label: kind === 'income' ? 'All income' : 'All spending', icon: 'all-inclusive' }, ...useCategoryOptions(kind, { allowNone: false })];
-  const s = b ? budgetStatus(b, data.transactions, cats) : null;
+  const s = b ? budgetStatus(b, rtx, cats) : null;
 
   const save = () => {
     setError(null);

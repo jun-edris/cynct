@@ -11,13 +11,13 @@ const WEEKDAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
 export default function Calendar() {
   const { c } = useTheme();
-  const { data, cats, catById } = useData();
+  const { data, cats, catById, rtx } = useData();
   const today = todayISO();
   const [month, setMonth] = useState(today.slice(0, 7));
   const [accountId, setAccountId] = useState('');
   const [day, setDay] = useState<string | null>(today.startsWith(month) ? today : null);
   const { start, end } = monthRange(month);
-  const txs = useMemo(() => accountId ? data.transactions.filter(t => t.accountId === accountId || t.toAccountId === accountId) : data.transactions, [data.transactions, accountId]);
+  const txs = useMemo(() => accountId ? rtx.filter(t => t.accountId === accountId || t.toAccountId === accountId) : rtx, [rtx, accountId]);
   const sum = summarize(txs, start, end, cats);
   const daily = dailyTotals(txs, start, end);
   const maxDay = Math.max(1, ...[...daily.values()].map(v => v.expense));

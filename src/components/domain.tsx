@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { Directory, File, Paths } from 'expo-file-system';
 import { router } from 'expo-router';
+import { money } from '../lib/currency';
 import { useData, safeJson } from '../data/DataContext';
 import { fonts, radius, useTheme, type Colors } from '../theme';
 import { Button, Chip, Field, Icon, IconBubble, Row, Sheet, T, formatTime, type Option } from './ui';
@@ -18,10 +19,10 @@ const upsertTag = upsert.tag;
 
 // ---------- options ----------
 export function useAccountOptions(includeId?: string | null, filter?: (a: Account) => boolean): Option[] {
-  const { data, balances } = useData();
+  const { data, balances, fmt } = useData();
   return data.accounts
     .filter(a => (!a.archived || a.id === includeId) && (!filter || filter(a)))
-    .map(a => ({ value: a.id, label: a.name, sub: `${ACCOUNT_TYPES[a.type] ?? a.type} · ${peso(balances.get(a.id) ?? 0)}`, color: a.color, icon: a.icon }));
+    .map(a => ({ value: a.id, label: a.name, sub: `${ACCOUNT_TYPES[a.type] ?? a.type} · ${fmt(balances.get(a.id) ?? 0, a.id)}`, color: a.color, icon: a.icon }));
 }
 
 export function useCategoryOptions(kind: 'expense' | 'income', { allowNone = true, rootsOnly = false, excludeId }: { allowNone?: boolean; rootsOnly?: boolean; excludeId?: string } = {}): Option[] {
@@ -53,26 +54,29 @@ export function txLook(t: Transaction, ctx: { accById: Map<string, Account>; cat
   const acc = t.accountId ? ctx.accById.get(t.accountId) : undefined;
   const to = t.toAccountId ? ctx.accById.get(t.toAccountId) : undefined;
   const cat = t.categoryId ? ctx.catById.get(t.categoryId) : undefined;
-  const fee = t.fee ? ` + ${peso(t.fee)} fee` : '';
+  const cur = acc?.currency ?? 'PHP';
+  const pm = (v: number, o?: { sign?: boolean }) => money(v, cur, o);
+  const fee = t.fee ? ` + ${pm(t.fee)} fee` : '';
+  const crossTo = t.type === 'transfer' && to && to.currency !== cur ? ` → ${money(t.toAmount ?? t.amount, to.currency)}` : '';
   switch (t.type) {
     case 'transfer':
-      return { title: t.note || `To ${to?.name ?? 'account'}`, sub: `${acc?.name ?? '?'} → ${to?.name ?? '?'}${fee}`, icon: 'swap-horizontal', color: c.info, amount: peso(t.amount), amountColor: c.ink };
+      return { title: t.note || `To ${to?.name ?? 'account'}`, sub: `${acc?.name ?? '?'} → ${to?.name ?? '?'}${fee}`, icon: 'swap-horizontal', color: c.info, amount: `${pm(t.amount)}${crossTo}`, amountColor: c.ink };
     case 'ext_out':
-      return { title: t.note || `Sent to ${t.counterparty ?? 'someone'}`, sub: `${acc?.name ?? ''} → ${t.counterparty ?? 'outside'}${fee}`, icon: 'arrow-top-right', color: c.muted, amount: `−${peso(t.amount + (t.fee ?? 0))}`, amountColor: c.ink };
+      return { title: t.note || `Sent to ${t.counterparty ?? 'someone'}`, sub: `${acc?.name ?? ''} → ${t.counterparty ?? 'outside'}${fee}`, icon: 'arrow-top-right', color: c.muted, amount: `−${pm(t.amount + (t.fee ?? 0))}`, amountColor: c.ink };
     case 'ext_in':
-      return { title: t.note || `From ${t.counterparty ?? 'someone'}`, sub: `${t.counterparty ?? 'Outside'} → ${acc?.name ?? ''}${t.heldFor ? ` · held for ${t.heldFor}` : ''}`, icon: 'arrow-bottom-left', color: c.info, amount: `+${peso(t.amount)}`, amountColor: c.info };
+      return { title: t.note || `From ${t.counterparty ?? 'someone'}`, sub: `${t.counterparty ?? 'Outside'} → ${acc?.name ?? ''}${t.heldFor ? ` · held for ${t.heldFor}` : ''}`, icon: 'arrow-bottom-left', color: c.info, amount: `+${pm(t.amount)}`, amountColor: c.info };
     case 'adjust':
-      return { title: 'Balance correction', sub: acc?.name ?? '', icon: 'scale-balance', color: c.muted, amount: peso(t.amount, { sign: true }), amountColor: t.amount > 0 ? c.income : c.ink };
+      return { title: 'Balance correction', sub: acc?.name ?? '', icon: 'scale-balance', color: c.muted, amount: pm(t.amount, { sign: true }), amountColor: t.amount > 0 ? c.income : c.ink };
     case 'goal_in':
-      return { title: t.note || 'Added to goal', sub: `${acc?.name ?? ''} → ${ctx.goalName?.(t.goalId) ?? 'goal'}`, icon: 'flag-plus', color: c.mango, amount: peso(t.amount), amountColor: c.ink };
+      return { title: t.note || 'Added to goal', sub: `${acc?.name ?? ''} → ${ctx.goalName?.(t.goalId) ?? 'goal'}`, icon: 'flag-plus', color: c.mango, amount: pm(t.amount), amountColor: c.ink };
     case 'goal_out':
-      return { title: t.note || 'Withdrew from goal', sub: `${ctx.goalName?.(t.goalId) ?? 'goal'} → ${acc?.name ?? ''}`, icon: 'flag-minus', color: c.mango, amount: peso(t.amount), amountColor: c.ink };
+      return { title: t.note || 'Withdrew from goal', sub: `${ctx.goalName?.(t.goalId) ?? 'goal'} → ${acc?.name ?? ''}`, icon: 'flag-minus', color: c.mango, amount: pm(t.amount), amountColor: c.ink };
     case 'goal_interest':
-      return { title: t.note || 'Interest', sub: ctx.goalName?.(t.goalId) ?? 'Goal', icon: 'percent', color: c.income, amount: `+${peso(t.amount)}`, amountColor: c.income };
+      return { title: t.note || 'Interest', sub: ctx.goalName?.(t.goalId) ?? 'Goal', icon: 'percent', color: c.income, amount: `+${money(t.amount, 'PHP')}`, amountColor: c.income };
     case 'debt_in': case 'debt_out': {
       const name = ctx.debtName?.(t.debtId);
       return { title: t.note || 'Debt', sub: [name, acc?.name ?? 'Off wallet'].filter(Boolean).join(' · '), icon: t.type === 'debt_in' ? 'hand-coin' : 'hand-coin-outline', color: c.warn,
-        amount: `${t.type === 'debt_in' ? '+' : '−'}${peso(t.amount)}`, amountColor: t.type === 'debt_in' ? c.info : c.ink };
+        amount: `${t.type === 'debt_in' ? '+' : '−'}${pm(t.amount)}`, amountColor: t.type === 'debt_in' ? c.info : c.ink };
     }
     default: {
       const isIncome = t.type === 'income';
@@ -80,7 +84,7 @@ export function txLook(t: Transaction, ctx: { accById: Map<string, Account>; cat
       const catLabel = cat ? (parent ? `${parent.name} · ${cat.name}` : cat.name) : 'Uncategorized';
       return { title: t.note || cat?.name || (isIncome ? 'Income' : 'Expense'), sub: [t.note ? catLabel : null, acc?.name].filter(Boolean).join(' · '),
         icon: cat?.icon ?? (isIncome ? 'cash-plus' : 'cash-minus'), color: cat?.color ?? c.muted,
-        amount: `${isIncome ? '+' : '−'}${peso(t.amount)}`, amountColor: isIncome ? c.income : c.ink };
+        amount: `${isIncome ? '+' : '−'}${pm(t.amount)}`, amountColor: isIncome ? c.income : c.ink };
     }
   }
 }
@@ -189,7 +193,7 @@ export function CategoryGrid({ kind, value, onChange }: { kind: 'expense' | 'inc
 }
 
 // ---------- photo attachment ----------
-async function keepPhoto(uri: string): Promise<string> {
+export async function keepPhoto(uri: string): Promise<string> {
   const dir = new Directory(Paths.document, 'photos');
   dir.create({ idempotent: true, intermediates: true });
   const ext = uri.split('.').pop()?.split('?')[0]?.toLowerCase() || 'jpg';
@@ -285,8 +289,9 @@ export function Hills({ pct, label, fill, back, mid, ink, house }: { pct: number
       <G clipPath="url(#front)"><Rect x={0} y={fillY} width={400} height={base - fillY + 1} fill={fill} /></G>
       {p > 0.02 && p < 0.98 ? <Line x1={0} x2={400} y1={fillY} y2={fillY} stroke={fill} strokeWidth={1.4} strokeDasharray="3 6" opacity={0.7} /> : null}
       <G transform={`translate(166 ${base - peak - 30})`}>
-        <Path d="M-12 12 0 2 12 12V26H-12Z" fill={house} />
-        <Rect x={-3} y={17} width={6} height={9} fill={mid} />
+        {/* A flag on the summit: goals aren't only houses. */}
+        <Rect x={-1.5} y={0} width={3} height={27} rx={1.5} fill={house} />
+        <Path d="M1.5 1 L18 6.5 L1.5 12 Z" fill={house} />
       </G>
       <SvgText x={186} y={base - peak - 10} fill={ink} fontSize={13} fontFamily={fonts.bold}>{label}</SvgText>
     </Svg>

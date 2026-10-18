@@ -2,7 +2,7 @@
 import { addDays, addMonths, daysBetween, futureValue, lastDayOfMonth, monthsBetween, parseISO, requiredMonthly, todayISO } from './money';
 
 export interface TxLite {
-  id: string; type: string; amount: number; fee?: number; accountId: string | null; toAccountId: string | null;
+  id: string; type: string; amount: number; fee?: number; toAmount?: number | null; accountId: string | null; toAccountId: string | null;
   categoryId: string | null; date: string; time?: string | null; debtId?: string | null; debtRole?: string | null;
   goalId?: string | null; note?: string; deletedAt?: number | null; counterparty?: string | null; tags?: string;
 }
@@ -28,7 +28,7 @@ export function accountBalances(accounts: AccountLite[], txs: TxLite[]): Map<str
       case 'income': case 'debt_in': case 'ext_in': case 'goal_out': add(t.accountId, t.amount); break;
       case 'adjust': add(t.accountId, t.amount); break;
       case 'ext_out': add(t.accountId, -(t.amount + fee)); break;
-      case 'transfer': add(t.accountId, -(t.amount + fee)); add(t.toAccountId, t.amount); break;
+      case 'transfer': add(t.accountId, -(t.amount + fee)); add(t.toAccountId, t.toAmount ?? t.amount); break;
       // goal_interest only changes the goal, not an account
     }
   }
