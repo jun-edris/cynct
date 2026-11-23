@@ -9,7 +9,7 @@ import { dayLabel, peso } from '../lib/money';
 
 export default function Installments() {
   const { c } = useTheme();
-  const { data, accById } = useData();
+  const { data, accById, fmt } = useData();
   const rows = data.installments.map(i => ({ i, s: installmentStatus(i) }));
   const active = rows.filter(x => !x.s.done);
   const done = rows.filter(x => x.s.done);
@@ -23,7 +23,7 @@ export default function Installments() {
         <T v="small">{s.done ? `Paid ${i.months} of ${i.months}` : `${i.paidCount}/${i.months} paid · next ${dayLabel(i.nextDue)} · ${accById.get(i.accountId)?.name ?? ''}`}</T>
         {!s.done ? <Bar pct={s.pct} color="#8B6CFF" /> : null}
       </View>}
-      right={<View style={{ alignItems: 'flex-end' }}><T v="num">{peso(i.monthlyAmount, { cents: false })}</T><T v="small">a month</T></View>} />
+      right={<View style={{ alignItems: 'flex-end' }}><T v="num">{fmt(i.monthlyAmount, i.accountId, { cents: false })}</T><T v="small">a month</T></View>} />
   );
 
   return (

@@ -13,7 +13,7 @@ import { FREQ_LABEL, PARTY_LABEL } from '../../lib/labels';
 export default function DebtDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { c } = useTheme();
-  const { data, act, rtx } = useData();
+  const { data, act, rtx, fmt } = useData();
   const d = data.debts.find(x => x.id === id);
   const [sheet, setSheet] = useState<'pay' | 'borrow' | null>(null);
   const [amount, setAmount] = useState('');
@@ -84,7 +84,7 @@ export default function DebtDetail() {
       {plans.length ? (
         <Section title="Planned payments">
           <List>{plans.map(r => <Row key={r.id} icon="calendar-sync" iconColor={tone} title={r.name} sub={`${FREQ_LABEL[r.frequency]} · next ${dayLabel(r.nextDue)}`}
-            right={<T v="num">{peso(r.amount, { cents: false })}</T>} onPress={() => router.push(`/recurring/${r.id}`)} chevron />)}</List>
+            right={<T v="num">{fmt(r.amount, r.accountId, { cents: false })}</T>} onPress={() => router.push(`/recurring/${r.id}`)} chevron />)}</List>
         </Section>
       ) : !d.closed ? (
         <Chip icon="calendar-plus" label="Plan regular payments" onPress={() => router.push({ pathname: '/recurring/[id]', params: { id: 'new', debtId: d.id } })} />
