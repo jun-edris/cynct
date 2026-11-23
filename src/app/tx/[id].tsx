@@ -1,18 +1,18 @@
 import React, { useMemo, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useData, safeJson } from '../../data/DataContext';
 import { radius, space, useTheme } from '../../theme';
 import {
-  Button, Chip, DateField, ErrorText, Field, FormRow, IconButton, Keypad, Note, Segmented, Select, T, TimeField, Toggle, close, keypadValue,
+  Button, Chip, Row, Sheet, DateField, ErrorText, Field, FormRow, IconButton, Keypad, Note, Segmented, Select, T, TimeField, Toggle, close, keypadValue,
 } from '../../components/ui';
 import { CategoryGrid, PhotoField, TagField, useAccountOptions } from '../../components/domain';
 import { advanceDue } from '../../lib/ledger';
 import { hasOperator } from '../../lib/calc';
-import { nowMs, toSignedCentavos, todayISO, uid } from '../../lib/money';
-import { money, symbolOf } from '../../lib/currency';
-import { newTx, restore, setSetting, softDelete, upsert } from '../../db/repo';
+import { inputValue, nowMs, toCentavos, toSignedCentavos, todayISO, uid } from '../../lib/money';
+import { CURRENCIES, convert, currencyInfo, money, symbolOf } from '../../lib/currency';
+import { newTx, restore, setCaptured, setSetting, softDelete, upsert } from '../../db/repo';
 import type { Transaction } from '../../db/schema';
 
 type Kind = 'expense' | 'income';
@@ -23,10 +23,10 @@ function nowTime() { const d = new Date(); return `${String(d.getHours()).padSta
 
 export default function Entry() {
   // Prefill (from a receipt scan or a template): amount in pesos as text, note, date, photo, category, account.
-  const params = useLocalSearchParams<{ id: string; type?: string; amount?: string; note?: string; date?: string; photo?: string; category?: string; account?: string }>();
+  const params = useLocalSearchParams<{ id: string; type?: string; amount?: string; currency?: string; note?: string; date?: string; time?: string; photo?: string; category?: string; account?: string; capture?: string }>();
   const { c } = useTheme();
   const insets = useSafeAreaInsets();
-  const { data, act, curOf } = useData();
+  const { data, act, curOf, rates } = useData();
   const existing = data.transactions.find(t => t.id === params.id) ?? data.deleted.find(t => t.id === params.id);
   const isNew = !existing;
   const special = existing && existing.type !== 'expense' && existing.type !== 'income';
@@ -34,14 +34,14 @@ export default function Entry() {
   const activeTrip = data.trips.find(t => !t.endDate);
 
   const [kind, setKind] = useState<Kind>(((existing?.type ?? params.type) === 'income' ? 'income' : 'expense'));
-  const [expr, setExpr] = useState(existing ? String(Math.abs(existing.amount) / 100) : params.amount ?? '');
+  const [expr, setExpr] = useState(existing ? String(Math.abs(existing.origAmount ?? existing.amount) / 100) : params.amount ?? '');
   const [signedAmount, setSignedAmount] = useState(existing?.type === 'adjust' ? String(existing.amount / 100) : '');
   const [keypadOpen, setKeypadOpen] = useState(isNew && !params.amount);
   const [note, setNote] = useState(existing?.note ?? params.note ?? '');
   const [categoryId, setCategoryId] = useState(existing?.categoryId ?? params.category ?? '');
   const [accountId, setAccountId] = useState(existing?.accountId ?? (params.account && data.accounts.some(a => a.id === params.account) ? params.account : lastUsed));
   const [date, setDate] = useState(existing?.date ?? (params.date && /^\d{4}-\d{2}-\d{2}$/.test(params.date) ? params.date : todayISO()));
-  const [time, setTime] = useState<string | null>(existing?.time ?? (isNew ? nowTime() : null));
+  const [time, setTime] = useState<string | null>(existing?.time ?? (params.time && /^\d{2}:\d{2}$/.test(params.time) ? params.time : isNew ? nowTime() : null));
   const [photo, setPhoto] = useState<string | null>(existing?.photoUri ?? params.photo ?? null);
   const [tags, setTags] = useState<string[]>(safeJson<string[]>(existing?.tags, []));
   const [tripId, setTripId] = useState<string | null>(existing?.tripId ?? (isNew ? activeTrip?.id ?? null : null));
@@ -49,12 +49,25 @@ export default function Entry() {
   const [freq, setFreq] = useState('monthly');
   const [error, setError] = useState<string | null>(null);
   const accountOptions = useAccountOptions(existing?.accountId);
+  // Paying in another currency: entryCur is what you type in; the account is charged `exact` in its own currency.
+  const [pickedCur, setPickedCur] = useState<string | null>(existing?.origCurrency ?? (params.currency ? params.currency.toUpperCase() : null));
+  const [curSheet, setCurSheet] = useState(false);
+  const [exact, setExact] = useState(existing?.origCurrency ? inputValue(existing.amount) : '');
+  const [exactEdited, setExactEdited] = useState(!!existing?.origCurrency);
 
   const value = useMemo(() => keypadValue(expr), [expr]);
   const accent = kind === 'income' ? c.income : c.spend;
   const cur = curOf(special ? existing!.accountId : accountId);
   const m = (v: number) => money(v, cur);
+  const entryCur = special ? cur : pickedCur ?? cur;
+  const foreign = entryCur !== cur;
+  const autoExact = foreign && value > 0 ? convert(Math.round(value * 100), entryCur, cur, rates) : null;
+  const exactMinor = !foreign ? null : exactEdited ? toCentavos(exact || '0') : autoExact;
+  const unitRate = foreign ? convert(100, entryCur, cur, rates) : null;
+  const accName = data.accounts.find(a => a.id === accountId)?.name ?? 'the account';
+  const curChoices = [...new Set([cur, 'PHP', 'USD', ...data.accounts.filter(a => !a.archived).map(a => a.currency), ...CURRENCIES.map(x => x.code)])];
 
+  const isSalary = (id: string | null) => !!id && (id === 'salary' || data.categories.find(x => x.id === id)?.parentId === 'salary');
   const save = () => {
     setError(null);
     if (special) {
@@ -63,23 +76,28 @@ export default function Entry() {
       if (act(db => upsert.transaction(db, { ...existing!, amount: amt, date, time, note: note.trim(), updatedAt: nowMs() }), 'Saved changes')) close();
       return;
     }
-    const amt = Math.round(value * 100);
-    if (!Number.isFinite(value) || amt <= 0) return setError('Enter an amount greater than zero.');
+    const typed = Math.round(value * 100);
+    if (!Number.isFinite(value) || typed <= 0) return setError('Enter an amount greater than zero.');
     if (!accountId) return setError('Pick an account.');
+    const amt = foreign ? exactMinor ?? 0 : typed;
+    if (foreign && (!Number.isFinite(amt) || amt <= 0)) return setError(`Enter what ${accName} was charged in ${cur}. There’s no saved ${entryCur} rate to work it out.`);
     const row: Transaction = {
       ...(existing ?? newTx({ type: kind, amount: amt, date })),
-      type: kind, amount: amt, accountId, categoryId: categoryId || null, date, time, note: note.trim(), photoUri: photo,
+      type: kind, amount: amt, origAmount: foreign ? typed : null, origCurrency: foreign ? entryCur : null, accountId, categoryId: categoryId || null, date, time, note: note.trim(), photoUri: photo,
       tags: JSON.stringify(tags), tripId, updatedAt: nowMs(),
     };
     const ok = act(db => {
       upsert.transaction(db, row);
       if (isNew) setSetting(db, 'lastUsedAccount', accountId);
+      if (isNew && params.capture) setCaptured(db, params.capture.split(','), 'added', row.id);
       if (isNew && repeat) {
         upsert.recurring(db, { id: uid(), name: row.note || (data.categories.find(x => x.id === row.categoryId)?.name ?? (kind === 'income' ? 'Income' : 'Expense')),
           kind: kind === 'income' ? 'income' : 'bill', amount: amt, accountId, toAccountId: null, categoryId: row.categoryId, frequency: freq,
           nextDue: advanceDue(freq, date), endDate: null, debtId: null, active: true, createdAt: nowMs() });
       }
-    }, isNew ? `${kind === 'income' ? 'Income' : 'Expense'} of ${m(amt)} saved${repeat ? ', repeats' : ''}` : 'Saved changes');
+    }, isNew ? `${kind === 'income' ? 'Income' : 'Expense'} of ${m(amt)} saved${repeat ? ', repeats' : ''}` : 'Saved changes',
+    // A new salary: offer to split it right away.
+    isNew && kind === 'income' && isSalary(row.categoryId) ? { label: 'Plan it', run: () => router.push({ pathname: '/paycheck', params: { amount: String((convert(amt, cur, 'PHP', rates) ?? amt) / 100), date } }) } : undefined);
     if (ok) close();
   };
 
@@ -117,15 +135,34 @@ export default function Entry() {
           <Pressable onPress={() => setKeypadOpen(true)} accessibilityRole="button" accessibilityLabel={`Amount ${m(Math.round(value * 100))}. Tap to edit`}
             style={{ alignItems: 'center', paddingVertical: 14 }}>
             <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 4 }}>
-              <T v="numLg" color={expr ? accent : c.faint} style={{ fontSize: 26, marginTop: 10 }}>{symbolOf(cur).trim()}</T>
+              <T v="numLg" color={expr ? accent : c.faint} style={{ fontSize: 26, marginTop: 10 }}>{symbolOf(entryCur).trim()}</T>
               <T v="display" color={expr ? c.ink : c.faint} style={{ fontSize: 56, lineHeight: 64 }} numberOfLines={1}>
                 {expr ? (hasOperator(expr) ? expr : Number(value).toLocaleString('en-PH', { maximumFractionDigits: 2 })) : '0'}
               </T>
             </View>
-            {hasOperator(expr) ? <T v="medium" color={c.muted}>= {m(Math.round(value * 100))}</T> : null}
+            {hasOperator(expr) ? <T v="medium" color={c.muted}>= {money(Math.round(value * 100), entryCur)}</T> : null}
             <View style={{ width: 44, height: 4, borderRadius: 2, backgroundColor: keypadOpen ? accent : c.line, marginTop: 6 }} />
           </Pressable>
         )}
+        {!special ? (
+          <View style={{ alignItems: 'center', marginTop: -8 }}>
+            <Chip icon="currency-usd" label={`${entryCur} · ${currencyInfo(entryCur).name}`} onPress={() => setCurSheet(true)} selected={foreign} />
+          </View>
+        ) : null}
+        {foreign ? (
+          <View style={{ backgroundColor: c.surface, borderRadius: radius.lg, padding: 14, gap: 10 }}>
+            <Field label={`Charged to ${accName} (${cur})`} value={exactEdited ? exact : autoExact !== null ? inputValue(autoExact) : ''} keyboardType="decimal-pad"
+              prefix={symbolOf(cur).trim()} placeholder="0" onChangeText={(v) => { setExact(v); setExactEdited(true); }}
+              hint={exactEdited ? 'Your exact amount. This is what your balance uses.'
+                : unitRate !== null ? `Worked out at 1 ${entryCur} = ${money(unitRate, cur, { cents: true })}. Change it to the exact figure on your app or statement.`
+                : `No ${entryCur} rate saved. Type what ${accName} was charged.`} />
+            {exactEdited && autoExact !== null ? (
+              <Pressable onPress={() => { setExactEdited(false); setExact(''); }} hitSlop={8} accessibilityRole="button">
+                <T v="semi" color={c.muted} style={{ fontSize: 14 }}>{`Use the rate instead (${m(autoExact)})`}</T>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
 
         <Field label="Note" value={note} onChangeText={setNote} placeholder={kind === 'income' ? 'e.g. October salary' : 'e.g. Lunch with team'} maxLength={120} onFocus={() => setKeypadOpen(false)} />
         {!special ? <CategoryGrid kind={kind} value={categoryId} onChange={(id) => { setCategoryId(id); }} /> : null}
@@ -152,6 +189,16 @@ export default function Entry() {
         {existing?.deletedAt ? <Note tone="warn" icon="delete-clock-outline">This transaction is in Recently deleted. Restore it from there.</Note> : null}
         <ErrorText text={error} />
       </ScrollView>
+
+      <Sheet visible={curSheet} onClose={() => setCurSheet(false)} title="Paid in">
+        <View style={{ gap: 2 }}>
+          {curChoices.map(code => (
+            <Row key={code} title={`${code} · ${currencyInfo(code).name}`} sub={code === cur ? `${accName}’s currency` : undefined} selected={code === entryCur}
+              left={<View style={{ width: 40, alignItems: 'center' }}><T v="h3">{symbolOf(code).trim()}</T></View>}
+              onPress={() => { setPickedCur(code === cur ? null : code); setExactEdited(false); setExact(''); setCurSheet(false); }} />
+          ))}
+        </View>
+      </Sheet>
 
       {keypadOpen && !(special && existing!.type === 'adjust') ? (
         <View style={{ backgroundColor: c.sunk, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, padding: 12, paddingBottom: insets.bottom + 12, gap: 10 }}>

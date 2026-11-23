@@ -41,6 +41,9 @@ export const transactions = sqliteTable('transactions', {
   fee: integer('fee').notNull().default(0), // transfers and outside sends; counted as spending under Fees
   // Transfers between accounts in different currencies: what arrived, in the destination's currency. Null = same as amount.
   toAmount: integer('to_amount'),
+  // Paid in another currency than the account's: the original figure. amount holds what the account was charged.
+  origAmount: integer('orig_amount'),
+  origCurrency: text('orig_currency'),
   accountId: text('account_id'), // null only for goal interest and off-wallet debt entries
   toAccountId: text('to_account_id'),
   categoryId: text('category_id'),
@@ -218,6 +221,18 @@ export const invoices = sqliteTable('invoices', {
   updatedAt: integer('updated_at').notNull(),
 });
 
+// Payment notifications read on this phone. Kept raw so better parsing rules apply to old captures too.
+export const captured = sqliteTable('captured', {
+  id: text('id').primaryKey(), // notification key + post time
+  app: text('app').notNull(), // maya | wise | gotyme | gcash | the app's visible name
+  title: text('title').notNull().default(''),
+  text: text('text').notNull().default(''),
+  postedAt: integer('posted_at').notNull(),
+  status: text('status').notNull().default('new'), // new | added | dismissed
+  txId: text('tx_id'),
+  createdAt: integer('created_at').notNull(),
+});
+
 export const settings = sqliteTable('settings', {
   key: text('key').primaryKey(),
   value: text('value').notNull(), // JSON
@@ -238,5 +253,6 @@ export type Note = typeof notes.$inferSelect;
 export type Rate = typeof rates.$inferSelect;
 export type Template = typeof templates.$inferSelect;
 export type Invoice = typeof invoices.$inferSelect;
+export type Captured = typeof captured.$inferSelect;
 
-export const schema = { accounts, categories, transactions, budgets, recurring, installments, debts, goals, paymentMethods, tags, trips, notes, rates, templates, invoices, settings };
+export const schema = { accounts, categories, transactions, budgets, recurring, installments, debts, goals, paymentMethods, tags, trips, notes, rates, templates, invoices, captured, settings };

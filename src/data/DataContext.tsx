@@ -5,6 +5,7 @@ import type { ParseCategory } from '../lib/parse';
 import type { Account, Category, Transaction } from '../db/schema';
 import { setMasked } from '../lib/money';
 import { BASE, inBase, missingRates, money, toBase, type RateMap } from '../lib/currency';
+import { haptic } from '../components/motion';
 
 export interface ToastAction { label: string; run: () => void }
 export interface ToastState { id: number; message: string; action?: ToastAction }
@@ -55,10 +56,11 @@ export function DataProvider({ db, children }: { db: DB; children: React.ReactNo
     try {
       fn(db);
       reload();
-      if (success) toast(success, undo);
+      if (success) { toast(success, undo); haptic('success'); }
       return true;
     } catch (e) {
       console.warn(e);
+      haptic('warn');
       toast(e instanceof Error ? friendlyError(e.message) : 'Could not save.');
       return false;
     }

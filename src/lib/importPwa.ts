@@ -57,7 +57,7 @@ export function convertPwaBackup(data: unknown, now = Date.now()): PwaImport {
     if (!valid) { skipped++; continue; }
     const categoryId = str(t.categoryId);
     transactions.push({
-      id: str(t.id) || uid(), type, amount, fee: 0, toAmount: null, accountId, toAccountId: type === 'transfer' ? toAccountId : null,
+      id: str(t.id) || uid(), type, amount, fee: 0, toAmount: null, origAmount: null, origCurrency: null, accountId, toAccountId: type === 'transfer' ? toAccountId : null,
       categoryId: categoryId && categoryIds.has(categoryId) ? categoryId : null, date, time: null, note: str(t.note),
       counterparty: null, heldFor: null, photoUri: null, tags: '[]',
       recurringId: str(t.recurringId) || null, installmentId: null, debtId: null, debtRole: null, goalId: null, tripId: null, deletedAt: null,

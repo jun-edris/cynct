@@ -6,7 +6,7 @@ import { fonts, radius, useTheme } from '../theme';
 import { Button, Card, ErrorText, Field, Grid, Icon, IconBubble, IconButton, List, Note, Row, Screen, Section, Sheet, T, Toggle } from '../components/ui';
 import { removeRate, setRate, setSetting } from '../db/repo';
 import { BASE, CURRENCIES, convert, currencyInfo, money, rateLabel, rateToText, textToRate } from '../lib/currency';
-import { dayLabel, groupDigits, nowMs, todayISO, toCentavos } from '../lib/money';
+import { dayLabel, nowMs, todayISO, toCentavos } from '../lib/money';
 
 function ago(ms: number) {
   const min = Math.round((nowMs() - ms) / 60_000);
@@ -101,12 +101,7 @@ export default function Currencies() {
   return (
     <Screen title="Currencies" subtitle="Live rates for converting, and for adding up accounts in other currencies." back>
       <Card style={{ gap: 12 }}>
-        <T v="label">Amount</T>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: c.sunk, borderRadius: radius.md, paddingHorizontal: 14 }}>
-          <T v="numLg" color={c.muted} style={{ fontSize: 20 }}>{currencyInfo(from).symbol.trim()}</T>
-          <TextInput value={groupDigits(amt)} onChangeText={t => setAmt(groupDigits(t))} keyboardType="decimal-pad" accessibilityLabel="Amount to convert" placeholder="0" placeholderTextColor={c.faint}
-            style={{ flex: 1, minHeight: 60, color: c.ink, fontFamily: fonts.numBlack, fontSize: 28 }} />
-        </View>
+        <Field label="Amount" big value={amt} onChangeText={setAmt} keyboardType="decimal-pad" placeholder="0" prefix={currencyInfo(from).symbol.trim()} />
         <T v="label" style={{ marginTop: 4 }}>Converted</T>
         <T v="display" numberOfLines={1}>{out === null ? '—' : money(out, to)}</T>
         <T v="small">

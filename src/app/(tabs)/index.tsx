@@ -6,6 +6,7 @@ import { isPayable, usePayUpcoming } from '../../data/actions';
 import { radius, useTheme } from '../../theme';
 import { Bar, Block, Button, Card, Empty, Icon, IconBubble, IconButton, List, Screen, Section, StatTile, T } from '../../components/ui';
 import { readLayout, type HomeSection } from '../../lib/home';
+import { draftsFrom, readCapture } from '../../data/capture';
 import { EyeButton, Hills, TxRow, UpcomingRow } from '../../components/domain';
 import { compactPeso, monthKey, peso, todayISO, parseISO, nowMs } from '../../lib/money';
 import { budgetStatus, goalProgress, monthRange, netWorth, streak, summarize, upcoming } from '../../lib/ledger';
@@ -41,7 +42,16 @@ export default function Home() {
   const needsBackup = !hasFolder && data.transactions.length >= 10 && (!lastManual || nowMs() - lastManual > 14 * 86_400_000);
   const dateLabel = parseISO(today).toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric' });
 
+  const capturePrefs = readCapture(data.settings);
+  const toReview = capturePrefs.enabled ? draftsFrom(data.captured, capturePrefs).drafts.length : 0;
   const alerts = (<>
+      {toReview ? (
+        <Card style={{ marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.infoSoft }} onPress={() => router.push('/capture')}>
+          <Icon name="bell-badge-outline" color={c.info} />
+          <T v="medium" style={{ flex: 1 }}>{`${toReview} payment${toReview === 1 ? '' : 's'} from your notifications to review`}</T>
+          <Icon name="chevron-right" color={c.info} />
+        </Card>
+      ) : null}
       {missing.length ? (
         <Card style={{ marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.warnSoft }} onPress={() => router.push('/currencies')}>
           <Icon name="currency-usd-off" color={c.warn} />

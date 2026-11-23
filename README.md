@@ -92,3 +92,24 @@ It's only for screenshots and quick UI checks; nothing persists there, and backu
   (plus a day-before heads-up for bills), debts, card due days, goal dates — all local, re-planned whenever data changes, max 40 scheduled.
 - **Monthly statement PDF** (`statement`, `src/lib/statement.ts`) and **Recap** (`recap`, `src/lib/recap.ts`): Wrapped-style cards for last month / this year.
 - **Home layout** (`home-layout`, `src/lib/home.ts`): show, hide and reorder Home sections.
+
+## Phase 4
+
+- **One number pad everywhere.** Every number field (`Field` with a numeric `keyboardType`) opens the app's own pad in a sheet instead of the phone keyboard:
+  amounts get the calculator and thousands separators, `numbers-and-punctuation` fields get a ± key, `number-pad` fields are digits only.
+- **Any currency on expenses and income.** Tap the currency chip under the amount. `amount` stays in the account's currency (what balances use) and is
+  prefilled from your rate but editable to the exact figure; the original goes in `orig_amount` / `orig_currency` (DB v5) and shows under the amount in lists.
+- **Paycheck plan** (`paycheck`, `src/lib/paycheck.ts`): splits a pay into bills due before the next payday (from planned payments, installments, card
+  dues and debts), day-to-day spending (your last 60 days' average, editable), goals (each goal's monthly amount, or what its deadline needs when none
+  is set), investing (a % you pick) and what's free. Bills are never trimmed; when money runs short, investing shrinks first, then goals. Saving a new
+  salary offers "Plan it".
+- **Payment capture** (`capture`, `src/lib/capture.ts`, `src/data/capture.ts`, native module `modules/cynct-capture`): an Android notification
+  listener keeps only notifications from Maya, Wise, GoTyme and GCash (by package id or visible app name) that mention a number, queues them on the
+  phone, and Cynct drains the queue when it opens (`captured` table, DB v5; not in backups; handled ones pruned after 60 days). Parsing rules are
+  tested against real notification wording. An outgoing and incoming notification with the same amount and currency within 30 minutes become one
+  transfer; money to or from your own name or account digits becomes a transfer too. Everything is a draft until you tap Add or Edit.
+  Needs "Notification access" turned on for Cynct in Android settings.
+- **Material 3 Expressive pass** (`src/components/motion.tsx`): spring press feedback with shape morphing on buttons, cards, chips and keys
+  (Material's spring tokens), connected button groups, an expressive switch, a pill indicator on the active tab, haptics, 48dp targets.
+  Navy & Mango colours stay.
+- Database v5 (`MIGRATIONS[4]`), backups version 5; older backups still restore.

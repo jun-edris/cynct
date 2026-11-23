@@ -20,6 +20,7 @@ import { STALE_AFTER_MS } from '../lib/fxrates';
 import { BASE } from '../lib/currency';
 import { planReminders } from '../lib/reminders';
 import { onOpen, readPrefs, schedule, setupNotifications } from '../lib/notify';
+import { CaptureSync } from '../data/capture';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -142,6 +143,7 @@ function Shell() {
       <StatusBar style={dark ? 'light' : 'dark'} />
       <AutoRates />
       <Reminders />
+      <CaptureSync />
       <LockGate>
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: c.bg }, animation: 'slide_from_right' }}>
           <Stack.Screen name="(tabs)" />

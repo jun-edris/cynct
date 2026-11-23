@@ -7,13 +7,13 @@ import { Button, Card, DateField, ErrorText, Field, Footer, FormRow, IconButton,
 import { PhotoField, useAccountOptions } from '../../components/domain';
 import { inputValue, nowMs, toCentavos, todayISO } from '../../lib/money';
 import { convert, money, rateToText } from '../../lib/currency';
-import { newTx, restore, softDelete, upsert } from '../../db/repo';
+import { newTx, restore, setCaptured, softDelete, upsert } from '../../db/repo';
 import type { Transaction } from '../../db/schema';
 
 type Side = 'mine' | 'outside';
 
 export default function TransferScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, ...pre } = useLocalSearchParams<{ id: string; from?: string; to?: string; amount?: string; received?: string; note?: string; date?: string; time?: string; capture?: string }>();
   const { c } = useTheme();
   const { data, act, curOf, rates } = useData();
   const t = data.transactions.find(x => x.id === id);
@@ -21,16 +21,16 @@ export default function TransferScreen() {
   const [from, setFrom] = useState<Side>(t?.type === 'ext_in' ? 'outside' : 'mine');
   const [to, setTo] = useState<Side>(t?.type === 'ext_out' ? 'outside' : 'mine');
   const firstAcc = data.accounts.find(a => !a.archived)?.id ?? '';
-  const [fromAcc, setFromAcc] = useState(t?.type !== 'ext_in' ? t?.accountId ?? firstAcc : firstAcc);
-  const [toAcc, setToAcc] = useState(t?.type === 'transfer' ? t.toAccountId ?? '' : t?.type === 'ext_in' ? t.accountId ?? '' : data.accounts.find(a => !a.archived && a.id !== firstAcc)?.id ?? '');
+  const [fromAcc, setFromAcc] = useState(t?.type !== 'ext_in' ? t?.accountId ?? (pre.from || firstAcc) : firstAcc);
+  const [toAcc, setToAcc] = useState(t?.type === 'transfer' ? t.toAccountId ?? '' : t?.type === 'ext_in' ? t.accountId ?? '' : pre.to || data.accounts.find(a => !a.archived && a.id !== (pre.from || firstAcc))?.id || '');
   const [counterparty, setCounterparty] = useState(t?.counterparty ?? '');
   const [heldFor, setHeldFor] = useState(t?.heldFor ?? '');
-  const [amount, setAmount] = useState(inputValue(t?.amount));
+  const [amount, setAmount] = useState(t ? inputValue(t.amount) : pre.amount ?? '');
   const [fee, setFee] = useState(inputValue(t?.fee));
-  const [received, setReceived] = useState(inputValue(t?.toAmount));
-  const [date, setDate] = useState(t?.date ?? todayISO());
-  const [time, setTime] = useState<string | null>(t?.time ?? null);
-  const [note, setNote] = useState(t?.note ?? '');
+  const [received, setReceived] = useState(t ? inputValue(t.toAmount) : pre.received ?? '');
+  const [date, setDate] = useState(t?.date ?? (pre.date && /^\d{4}-\d{2}-\d{2}$/.test(pre.date) ? pre.date : todayISO()));
+  const [time, setTime] = useState<string | null>(t?.time ?? (pre.time && /^\d{2}:\d{2}$/.test(pre.time) ? pre.time : null));
+  const [note, setNote] = useState(t?.note ?? pre.note ?? '');
   const [photo, setPhoto] = useState<string | null>(t?.photoUri ?? null);
   const [error, setError] = useState<string | null>(null);
   const fromOptions = useAccountOptions(t?.accountId);
@@ -63,7 +63,7 @@ export default function TransferScreen() {
       counterparty: type === 'transfer' ? null : counterparty.trim(), heldFor: type === 'ext_in' ? heldFor.trim() || null : null,
       date, time, note: note.trim(), photoUri: photo, categoryId: null, updatedAt: nowMs(),
     };
-    if (act(db => upsert.transaction(db, row), isNew ? `${type === 'transfer' ? 'Transfer' : type === 'ext_out' ? 'Sent' : 'Received'} ${m(amt)}` : 'Saved changes')) close();
+    if (act(db => { upsert.transaction(db, row); if (isNew && pre.capture) setCaptured(db, pre.capture.split(','), 'added', row.id); }, isNew ? `${type === 'transfer' ? 'Transfer' : type === 'ext_out' ? 'Sent' : 'Received'} ${m(amt)}` : 'Saved changes')) close();
   };
 
   const del = () => {

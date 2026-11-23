@@ -117,7 +117,12 @@ export function TxRow({ t, showDate, selected, onPress, onLongPress }: { t: Tran
         {t.photoUri ? <Icon name="paperclip" size={13} color={c.faint} /> : null}
         {tagIds.length ? <Icon name="tag-outline" size={13} color={c.faint} /> : null}
       </View>}
-      right={<T v="num" color={look.amountColor}>{look.amount}</T>} />
+      right={t.origAmount && t.origCurrency ? (
+        <View style={{ alignItems: 'flex-end' }}>
+          <T v="num" color={look.amountColor}>{look.amount}</T>
+          <T v="small">{money(t.origAmount, t.origCurrency)}</T>
+        </View>
+      ) : <T v="num" color={look.amountColor}>{look.amount}</T>} />
   );
 }
 

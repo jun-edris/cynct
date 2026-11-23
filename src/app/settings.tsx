@@ -57,6 +57,8 @@ export default function Settings() {
         <List>
           <Row icon="bell-outline" iconColor={c.mango} title="Reminders" sub={(data.settings.notify as { enabled?: boolean } | undefined)?.enabled ? 'On' : 'Off'} chevron onPress={() => router.push('/notifications')} />
           <Row icon="view-dashboard-edit-outline" iconColor={c.info} title="Home layout" sub="Show, hide and reorder sections" chevron onPress={() => router.push('/home-layout')} />
+          <Row icon="bell-badge-outline" iconColor="#8B6CFF" title="Payment capture" sub={(data.settings.capture as { enabled?: boolean } | undefined)?.enabled ? 'On' : 'Maya, Wise, GoTyme notifications'} chevron onPress={() => router.push('/capture')} />
+          <Row icon="cash-fast" iconColor="#2EC4B6" title="Paycheck plan" sub="Split a pay into bills, goals and free money" chevron onPress={() => router.push('/paycheck')} />
         </List>
       </Section>
 

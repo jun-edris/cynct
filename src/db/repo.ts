@@ -3,9 +3,9 @@
 import { and, eq, inArray, isNotNull, lt } from 'drizzle-orm';
 import type { BaseSQLiteDatabase, SQLiteTable } from 'drizzle-orm/sqlite-core';
 import {
-  schema, accounts, categories, transactions, budgets, recurring, installments, debts, goals, paymentMethods, tags, trips, notes, rates, templates, invoices, settings,
+  schema, accounts, categories, transactions, budgets, recurring, installments, debts, goals, paymentMethods, tags, trips, notes, rates, templates, invoices, captured, settings,
   type Account, type Category, type Transaction, type Budget, type Recurring, type Installment, type Debt, type Goal, type PaymentMethod,
-  type Tag, type Trip, type Note, type Rate, type Template, type Invoice,
+  type Tag, type Trip, type Note, type Rate, type Template, type Invoice, type Captured,
 } from './schema';
 import { advanceDue } from '../lib/ledger';
 import { addMonths, todayISO, uid } from '../lib/money';
@@ -17,7 +17,7 @@ export type DB = BaseSQLiteDatabase<'sync', any, typeof schema>;
 export interface AllData {
   accounts: Account[]; categories: Category[]; transactions: Transaction[]; deleted: Transaction[]; budgets: Budget[]; recurring: Recurring[];
   installments: Installment[]; debts: Debt[]; goals: Goal[]; paymentMethods: PaymentMethod[]; tags: Tag[]; trips: Trip[]; notes: Note[];
-  rates: Rate[]; templates: Template[]; invoices: Invoice[];
+  rates: Rate[]; templates: Template[]; invoices: Invoice[]; captured: Captured[];
   settings: Record<string, unknown>;
 }
 
@@ -47,6 +47,7 @@ export function loadAll(db: DB): AllData {
     rates: db.select().from(rates).all().sort((a, b) => a.currency.localeCompare(b.currency)),
     templates: db.select().from(templates).all().sort((a, b) => a.sort - b.sort || a.createdAt - b.createdAt),
     invoices: db.select().from(invoices).all().sort((a, b) => b.issueDate.localeCompare(a.issueDate) || b.createdAt - a.createdAt),
+    captured: db.select().from(captured).all().sort((a, b) => b.postedAt - a.postedAt),
     settings: s,
   };
 }
@@ -106,6 +107,39 @@ export function setRate(db: DB, currency: string, perUnit: number, now = Date.no
   const row = { currency, perUnit: Math.round(perUnit), updatedAt: now };
   db.insert(rates).values(row).onConflictDoUpdate({ target: rates.currency, set: row }).run();
 }
+// ---------- captured notifications ----------
+/**
+ * Adds newly captured notifications, skipping ones already stored and re-posts of the same message
+ * (some apps re-post a notification when it updates, with a new time but the same words).
+ */
+export function addCaptured(db: DB, rows: { id: string; app: string; title: string; text: string; postedAt: number }[]): number {
+  if (!rows.length) return 0;
+  const existing = db.select({ id: captured.id, app: captured.app, text: captured.text, postedAt: captured.postedAt }).from(captured).all();
+  const ids = new Set(existing.map(r => r.id));
+  const recent = [...existing];
+  let added = 0;
+  db.transaction(tx => {
+    for (const r of rows) {
+      if (ids.has(r.id)) continue;
+      if (recent.some(e => e.app === r.app && e.text === r.text && Math.abs(e.postedAt - r.postedAt) < 120_000)) continue;
+      tx.insert(captured).values({ ...r, status: 'new', txId: null, createdAt: Date.now() }).run();
+      ids.add(r.id); recent.push(r); added++;
+    }
+  });
+  return added;
+}
+
+export function setCaptured(db: DB, ids: string[], status: 'new' | 'added' | 'dismissed', txId: string | null = null) {
+  for (const id of ids) db.update(captured).set({ status, txId }).where(eq(captured.id, id)).run();
+}
+
+/** Forget handled captures older than `days` so raw notification text doesn't pile up. */
+export function pruneCaptured(db: DB, olderThanMs: number) {
+  for (const r of db.select({ id: captured.id, status: captured.status, postedAt: captured.postedAt }).from(captured).all()) {
+    if (r.status !== 'new' && r.postedAt < olderThanMs) db.delete(captured).where(eq(captured.id, r.id)).run();
+  }
+}
+
 export function removeRate(db: DB, currency: string) { db.delete(rates).where(eq(rates.currency, currency)).run(); }
 
 export const remove = {
@@ -185,7 +219,7 @@ export function saveAccount(db: DB, account: Account, correction: number) {
 export function newTx(p: Partial<Transaction> & Pick<Transaction, 'type' | 'amount' | 'date'>): Transaction {
   const now = Date.now();
   return {
-    id: uid(), fee: 0, toAmount: null, accountId: null, toAccountId: null, categoryId: null, time: null, note: '', counterparty: null, heldFor: null, photoUri: null,
+    id: uid(), fee: 0, toAmount: null, origAmount: null, origCurrency: null, accountId: null, toAccountId: null, categoryId: null, time: null, note: '', counterparty: null, heldFor: null, photoUri: null,
     tags: '[]', recurringId: null, installmentId: null, debtId: null, debtRole: null, goalId: null, tripId: null, deletedAt: null,
     createdAt: now, updatedAt: now, ...p,
   };
@@ -311,6 +345,7 @@ const ORDER: { name: ListKey; table: SQLiteTable }[] = [
   { name: 'rates', table: rates },
   { name: 'templates', table: templates },
   { name: 'invoices', table: invoices },
+  { name: 'captured', table: captured },
 ];
 
 function orderCategories(cats: Category[]): Category[] {
@@ -321,7 +356,7 @@ function orderCategories(cats: Category[]): Category[] {
 
 type Lists = { [K in ListKey]: AllData[K] };
 const emptyLists = (): Lists => ({ categories: [], accounts: [], transactions: [], budgets: [], recurring: [], installments: [], debts: [], goals: [],
-  paymentMethods: [], tags: [], trips: [], notes: [], rates: [], templates: [], invoices: [] });
+  paymentMethods: [], tags: [], trips: [], notes: [], rates: [], templates: [], invoices: [], captured: [] });
 
 function replaceAllIn(db: DB, data: Partial<Lists>, settingsObj: Record<string, unknown>) {
   db.transaction(tx => {
@@ -347,11 +382,12 @@ export function applyPwaImport(db: DB, p: PwaImport) {
 
 // Kept from when the app was called Bahay so every existing backup still restores.
 export const BACKUP_APP = 'bahay-native';
-export const BACKUP_VERSION = 4;
+export const BACKUP_VERSION = 5;
 
 export function exportAll(db: DB) {
   const d = loadAll(db);
-  return { app: BACKUP_APP, version: BACKUP_VERSION, exportedAt: new Date().toISOString(), ...d, transactions: [...d.transactions, ...d.deleted], deleted: undefined };
+  return { app: BACKUP_APP, version: BACKUP_VERSION, exportedAt: new Date().toISOString(), ...d, transactions: [...d.transactions, ...d.deleted], deleted: undefined,
+    captured: undefined /* raw notification text stays on the phone */ };
 }
 
 export function importAll(db: DB, raw: unknown): number {

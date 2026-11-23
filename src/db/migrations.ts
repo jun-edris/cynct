@@ -286,6 +286,24 @@ export const MIGRATIONS: string[] = [
     updated_at INTEGER NOT NULL
   );
   `,
+  // v5: what you actually paid when it was in another currency (e.g. $12.00 on a peso card).
+  // amount stays in the account's currency and is what balances use; these are for display and editing.
+  `
+  ALTER TABLE transactions ADD COLUMN orig_amount INTEGER CHECK (orig_amount IS NULL OR orig_amount > 0);
+  ALTER TABLE transactions ADD COLUMN orig_currency TEXT;
+  -- Payment notifications captured on this phone (Maya, Wise, GoTyme…), waiting to be added or dismissed.
+  CREATE TABLE captured (
+    id TEXT PRIMARY KEY,
+    app TEXT NOT NULL,
+    title TEXT NOT NULL DEFAULT '',
+    text TEXT NOT NULL DEFAULT '',
+    posted_at INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new','added','dismissed')),
+    tx_id TEXT,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX captured_status ON captured(status, posted_at);
+  `,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

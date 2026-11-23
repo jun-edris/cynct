@@ -98,3 +98,21 @@ describe.skipIf(!hasSqlite)('currency in the database', () => {
     expect(() => upsert.transaction(db, newTx({ type: 'transfer', amount: 1_00, toAmount: 0, accountId: 'usd', toAccountId: 'php', date: '2026-10-18' }))).toThrow();
   });
 });
+
+describe.skipIf(!hasSqlite)('paying in another currency', () => {
+  it('upgrades a v4 database, charges the account its own currency and keeps the original through a backup', () => {
+    const db = finishMigration(rawAtVersion(4));
+    applySeed(db, emptySetup());
+    saveAccount(db, acc('php', 'PHP', 5_000_00), 0);
+    upsert.transaction(db, newTx({ type: 'expense', amount: 70_250, origAmount: 1_200, origCurrency: 'USD', accountId: 'php', date: '2026-11-20', note: 'Netflix' }));
+    const all = loadAll(db);
+    const t = all.transactions.find(x => x.note === 'Netflix')!;
+    expect(t).toMatchObject({ amount: 70_250, origAmount: 1_200, origCurrency: 'USD' });
+    // Balances move by what the account was charged, never by the foreign figure.
+    expect(accountBalances(all.accounts, all.transactions).get('php')).toBe(5_000_00 - 70_250);
+    const fresh = testDb();
+    importAll(fresh.db, JSON.parse(JSON.stringify(exportAll(db))));
+    expect(loadAll(fresh.db).transactions.find(x => x.note === 'Netflix')).toMatchObject({ origAmount: 1_200, origCurrency: 'USD' });
+    expect(() => upsert.transaction(fresh.db, { ...t, origAmount: -5 })).toThrow();
+  });
+});

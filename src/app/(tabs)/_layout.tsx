@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { Animated, Pressable, View } from 'react-native';
 import { Redirect, Tabs, router, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useData } from '../../data/DataContext';
 import { fonts, radius, useTheme } from '../../theme';
 import { Chip, Grid, Icon, IconBubble, Sheet, T } from '../../components/ui';
 import { useApplyTemplate } from '../../data/actions';
+import { Squish, SPRING, haptic, useSpring } from '../../components/motion';
 
 const TABS = [
   { path: '/', label: 'Home', icon: 'home-variant-outline', on: 'home-variant' },
@@ -31,11 +32,11 @@ function AddMenu({ open, onClose }: { open: boolean; onClose: () => void }) {
     <Sheet visible={open} onClose={onClose} title="Add">
       <Grid>
         {tiles.map(t => (
-          <Pressable key={t.label} onPress={t.onPress} accessibilityRole="button" accessibilityLabel={t.label}
-            style={({ pressed }) => ({ flexGrow: 1, backgroundColor: c.surface, borderRadius: radius.lg, padding: 16, gap: 12, opacity: pressed ? 0.8 : 1 })}>
+          <Squish key={t.label} onPress={t.onPress} accessibilityRole="button" accessibilityLabel={t.label} outer={{ flexGrow: 1 }} scale={0.96} radius={radius.lg} pressedRadius={radius.md}
+            style={{ flexGrow: 1, backgroundColor: c.surface, padding: 16, gap: 12 }}>
             <IconBubble icon={t.icon} color={t.color} size={44} />
             <View><T v="h3">{t.label}</T><T v="small">{t.sub}</T></View>
-          </Pressable>
+          </Squish>
         ))}
       </Grid>
       <View style={{ height: 6 }} />
@@ -52,21 +53,28 @@ function AddMenu({ open, onClose }: { open: boolean; onClose: () => void }) {
   );
 }
 
+/** M3 Expressive navigation item: a pill indicator springs open behind the active icon. */
+function TabItem({ t, on }: { t: (typeof TABS)[number]; on: boolean }) {
+  const { c } = useTheme();
+  const k = useSpring(on ? 1 : 0, SPRING.fastSpatial);
+  return (
+    <Pressable onPress={() => { if (!on) haptic('select'); router.navigate(t.path); }} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={t.label}
+      style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3, height: 60 }}>
+      <Animated.View style={{ width: k.interpolate({ inputRange: [0, 1], outputRange: [32, 56] }), height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center',
+        backgroundColor: on ? c.mangoSoft : 'transparent' }}>
+        <Icon name={on ? t.on : t.icon} size={24} color={on ? c.ink : c.faint} />
+      </Animated.View>
+      <T v="label" color={on ? c.ink : c.faint} style={{ fontFamily: on ? fonts.bold : fonts.medium, fontSize: 12 }}>{t.label}</T>
+    </Pressable>
+  );
+}
+
 function TabBar() {
   const { c } = useTheme();
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const item = (t: (typeof TABS)[number]) => {
-    const on = pathname === t.path;
-    return (
-      <Pressable key={t.path} onPress={() => router.navigate(t.path)} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={t.label}
-        style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3, height: 56 }}>
-        <Icon name={on ? t.on : t.icon} size={24} color={on ? c.ink : c.faint} />
-        <T v="label" color={on ? c.ink : c.faint} style={{ fontFamily: on ? fonts.bold : fonts.medium, fontSize: 11.5 }}>{t.label}</T>
-      </Pressable>
-    );
-  };
+  const item = (t: (typeof TABS)[number]) => <TabItem key={t.path} t={t} on={pathname === t.path} />;
   return (
     <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 14, paddingBottom: insets.bottom + 10 }} pointerEvents="box-none">
       <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: c.surface, borderRadius: radius.xl, paddingHorizontal: 6,

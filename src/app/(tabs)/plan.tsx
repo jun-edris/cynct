@@ -1,25 +1,26 @@
 import React from 'react';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 import { router, type Href } from 'expo-router';
 import { useData, safeJson } from '../../data/DataContext';
 import { radius, useTheme } from '../../theme';
 import { Card, Grid, Icon, IconBubble, Screen, Section, T } from '../../components/ui';
 import { compactPeso, dayLabel, todayISO } from '../../lib/money';
 import { budgetStatus, debtStatus, goalProgress, upcoming } from '../../lib/ledger';
+import { Squish } from '../../components/motion';
 
 function Tile({ icon, color, title, sub, href, wide }: { icon: string; color: string; title: string; sub?: string; href: Href; wide?: boolean }) {
   const { c } = useTheme();
   return (
-    <Pressable onPress={() => router.push(href)} accessibilityRole="button" accessibilityLabel={title}
-      style={({ pressed }) => ({ width: '100%', flexGrow: wide ? undefined : 1, backgroundColor: c.surface, borderRadius: radius.lg, padding: 16,
-        flexDirection: wide ? 'row' : 'column', alignItems: wide ? 'center' : 'flex-start', gap: wide ? 14 : 12, opacity: pressed ? 0.8 : 1 })}>
+    <Squish onPress={() => router.push(href)} accessibilityRole="button" accessibilityLabel={title} outer={{ flexGrow: wide ? undefined : 1 }} scale={0.97} radius={radius.lg} pressedRadius={radius.md}
+      style={{ width: '100%', flexGrow: wide ? undefined : 1, backgroundColor: c.surface, padding: 16,
+        flexDirection: wide ? 'row' : 'column', alignItems: wide ? 'center' : 'flex-start', gap: wide ? 14 : 12 }}>
       <IconBubble icon={icon} color={color} size={wide ? 46 : 42} />
       <View style={{ flex: wide ? 1 : undefined }}>
         <T v="h3">{title}</T>
         {sub ? <T v="small" numberOfLines={2}>{sub}</T> : null}
       </View>
       {wide ? <Icon name="chevron-right" color={c.faint} /> : null}
-    </Pressable>
+    </Squish>
   );
 }
 
@@ -46,6 +47,8 @@ export default function Plan() {
         <Tile wide icon="flag-variant" color={c.income} title="Goals" sub={goals.length ? `${goals.length} in progress · ${compactPeso(saved)} saved` : 'Save toward something that matters'} href="/goals" />
         <Tile wide icon="calendar-clock" color={c.info} title="Planned payments"
           sub={next ? `Next: ${next.name}, ${dayLabel(next.date)}` : 'Bills, paydays and one-time payments'} href="/planned" />
+        <Tile wide icon="cash-fast" color="#2EC4B6" title="Paycheck plan" sub="Split your pay into bills, goals, investing and free money" href="/paycheck" />
+        <Tile wide icon="bell-badge-outline" color="#8B6CFF" title="Payment capture" sub="Maya, Wise and GoTyme notifications become transactions" href="/capture" />
       </View>
 
       <Section title="Debts">

@@ -287,3 +287,11 @@ describe('typing amounts with thousands separators', () => {
     expect(m.peso(123456)).toBe('₱1,234.56');
   });
 });
+
+describe('keypad decimals', () => {
+  it('allows 6 decimals for rates but keeps 2 by default', async () => {
+    const { press, pressWith } = await import('../src/lib/calc');
+    expect(['0', '.', '0', '1', '7', '5', '4', '3', '9'].reduce((e, k) => pressWith(e, k, 6), '')).toBe('0.017543');
+    expect(['1', '.', '2', '3', '4'].reduce((e, k) => press(e, k), '')).toBe('1.23');
+  });
+});

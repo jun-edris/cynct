@@ -44,7 +44,10 @@ export function evaluate(expr: string): number {
 export function hasOperator(expr: string) { return [...expr].some(ch => OPS.has(ch)); }
 
 /** Applies a keypad press to the expression string. */
-export function press(expr: string, key: string): string {
+export function press(expr: string, key: string): string { return pressWith(expr, key, 2); }
+
+/** Like press, with a decimal limit (6 for exchange rates). Separate so press stays safe as a reduce() callback. */
+export function pressWith(expr: string, key: string, maxDecimals: number): string {
   if (key === 'AC') return '';
   if (key === '⌫') return expr.slice(0, -1);
   if (key === '=') { const v = evaluate(expr); return Number.isFinite(v) ? String(v) : ''; }
@@ -59,7 +62,7 @@ export function press(expr: string, key: string): string {
   if (current.endsWith('%')) return expr; // nothing after a percent sign
   if (key === '.') return current.includes('.') ? expr : expr + (current ? '.' : '0.');
   const decimals = current.includes('.') ? current.split('.')[1].length : 0;
-  if (decimals >= 2) return expr;
+  if (decimals >= maxDecimals) return expr;
   if (current.replace('.', '').length >= 10) return expr;
   if (current === '0' && key !== '.') return expr.slice(0, -1) + (key === '00' ? '0' : key);
   if (!current && key === '00') return expr + '0';
