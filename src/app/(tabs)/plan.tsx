@@ -89,6 +89,7 @@ export default function Plan() {
           <Tile icon="bank-outline" color="#4C8DFF" title="Loan" sub="Monthly payment and true cost" href="/tools/loan" />
           <Tile icon="piggy-bank-outline" color={c.mango} title="Savings" sub="How much, how long" href="/tools/savings" />
           <Tile icon="calculator-variant-outline" color={c.spend} title="Tax" sub="PH income tax, SSS, PhilHealth, Pag-IBIG" href="/tools/tax" />
+          <Tile icon="lifebuoy" color={c.income} title="Emergency fund" sub="How many months you're covered" href="/tools/emergency" />
         </Grid>
         <View style={{ marginTop: 10 }}>
           <Tile icon="account-multiple-outline" color="#2EC4B6" title="Split the bill" sub="Even shares with service charge" href="/tools/split" wide />

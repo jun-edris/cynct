@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dailySpending, goalShare, nextPayday, payDays, planPaycheck } from '../src/lib/paycheck';
+import { dailySpending, goalShare, nextPayday, payDays, payShareOf, planPaycheck } from '../src/lib/paycheck';
 
 const bill = (name: string, amount: number, date = '2026-11-20') => ({ key: name, name, date, amount, source: 'recurring' });
 
@@ -66,5 +66,35 @@ describe('paycheck plan', () => {
     expect(goalShare(10_000_00, 77_000_00, 2_800_000_00, 30)).toBe(Math.round(10_000_00 * 30 / 30.44));
     expect(goalShare(0, 3_000_00, 50_000_00, 30)).toBe(Math.round(3_000_00 * 30 / 30.44));
     expect(goalShare(1_000_00, 0, 0, 30)).toBe(0);
+  });
+
+  it('gives a bigger pay a bigger share of the goal', () => {
+    // Planned income ₱80k a month; goal wants ₱6k a month.
+    const small = goalShare(6_000_00, 0, 50_000_00, 7, payShareOf(27_000_00, 80_000_00));
+    const big = goalShare(6_000_00, 0, 50_000_00, 7, payShareOf(53_000_00, 80_000_00));
+    expect(small).toBe(Math.round(6_000_00 * 27 / 80));
+    expect(big).toBe(Math.round(6_000_00 * 53 / 80));
+    expect(big).toBeGreaterThan(small);
+    // A pay bigger than the planned month never asks for more than one month of the goal.
+    expect(goalShare(6_000_00, 0, 50_000_00, 7, payShareOf(120_000_00, 80_000_00))).toBe(6_000_00);
+    expect(payShareOf(10_000_00, 0)).toBeNull();
+  });
+
+  it('can put what is free into goals too', () => {
+    const base = { amount: 50_000_00, days: 15, bills: [bill('Rent', 10_000_00)], dailySpend: 0, investPct: 0,
+      goals: [{ id: 'g1', name: 'House', need: 3_000_00 }, { id: 'g2', name: 'Emergency', need: 1_000_00 }] };
+    const off = planPaycheck(base);
+    const on = planPaycheck({ ...base, freeToGoals: true });
+    expect(off.free).toBe(36_000_00);
+    expect(on.free).toBe(0);
+    expect(on.save).toBe(40_000_00);
+    expect(on.goals.map(g => g.put)).toEqual([30_000_00, 10_000_00]);
+  });
+
+  it('never tops a goal up past its target', () => {
+    const p = planPaycheck({ amount: 50_000_00, days: 15, bills: [], dailySpend: 0, investPct: 0, freeToGoals: true,
+      goals: [{ id: 'g1', name: 'Phone', need: 3_000_00, room: 5_000_00 }, { id: 'g2', name: 'House', need: 1_000_00, room: 1_000_000_00 }] });
+    expect(p.goals.map(g => g.put)).toEqual([5_000_00, 45_000_00]);
+    expect(p.free).toBe(0);
   });
 });

@@ -9,15 +9,16 @@ import { SWATCHES } from '../../lib/seed';
 import { addMonths, requiredMonthly, inputValue, monthsBetween, nowMs, peso, toCentavos, todayISO, uid } from '../../lib/money';
 
 export default function GoalEdit() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  // name/target/monthly/months prefill a new goal, e.g. from the emergency fund calculator.
+  const { id, ...pre } = useLocalSearchParams<{ id: string; name?: string; target?: string; monthly?: string; months?: string }>();
   const { data, act } = useData();
   const g = data.goals.find(x => x.id === id);
-  const [name, setName] = useState(g?.name ?? '');
-  const [target, setTarget] = useState(inputValue(g?.target));
+  const [name, setName] = useState(g?.name ?? pre.name ?? '');
+  const [target, setTarget] = useState(inputValue(g?.target ?? (Number(pre.target) || null)));
   const [starting, setStarting] = useState(inputValue(g?.startingSaved));
-  const [monthly, setMonthly] = useState(inputValue(g?.monthly));
+  const [monthly, setMonthly] = useState(inputValue(g?.monthly ?? (Number(pre.monthly) || null)));
   const [rate, setRate] = useState(g?.annualRate ? String(g.annualRate / 100) : '');
-  const [deadline, setDeadline] = useState(g?.deadline ?? addMonths(todayISO(), 36));
+  const [deadline, setDeadline] = useState(g?.deadline ?? addMonths(todayISO(), Number(pre.months) || 36));
   const [accountIds, setAccountIds] = useState<string[]>(safeJson<string[]>(g?.accountIds, []));
   const [color, setColor] = useState(g?.color ?? SWATCHES[0]);
   const [photo, setPhoto] = useState<string | null>(g?.photoUri ?? null);

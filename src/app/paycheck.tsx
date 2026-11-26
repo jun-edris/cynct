@@ -3,10 +3,10 @@ import { View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useData, safeJson } from '../data/DataContext';
 import { radius, useTheme } from '../theme';
-import { Block, Card, Chip, DateField, Field, Icon, List, Note, Row, Screen, Section, T } from '../components/ui';
-import { forecast, goalProgress, upcoming } from '../lib/ledger';
+import { Block, Card, Chip, DateField, Field, Icon, List, Note, Row, Screen, Section, T, Toggle } from '../components/ui';
+import { forecast, goalProgress, monthlyEquivalent, upcoming } from '../lib/ledger';
 import { setSetting } from '../db/repo';
-import { dailySpending, goalShare, nextPayday, payDays, planPaycheck, type PlanBill } from '../lib/paycheck';
+import { dailySpending, goalShare, nextPayday, payDays, payShareOf, planPaycheck, type PlanBill } from '../lib/paycheck';
 import { addDays, dayLabel, lastDayOfMonth, peso, toCentavos, todayISO } from '../lib/money';
 
 const INVEST = [0, 5, 10, 15, 20];
@@ -23,6 +23,7 @@ export default function PaycheckPlan() {
   const [custom, setCustom] = useState<string | null>(null);
   const [dayOverride, setDayOverride] = useState('');
   const [investPct, setInvestPct] = useState(Number(data.settings.paycheckInvestPct ?? 10));
+  const [freeToGoals, setFreeToGoals] = useState(Boolean(data.settings.paycheckFreeToGoals));
 
   const salaryIds = useMemo(() => new Set(cats.filter(x => x.kind === 'income' && (x.id === 'salary' || x.parentId === 'salary')).map(x => x.id)), [cats]);
   const detected = useMemo(() => {
@@ -44,13 +45,18 @@ export default function PaycheckPlan() {
   const estDaily = useMemo(() => dailySpending(rtx, today, 60), [rtx, today]);
   const dailySpend = dayOverride ? Math.round((toCentavos(dayOverride) || 0) / days) : estDaily;
 
-  const goals = useMemo(() => data.goals.filter(g => !g.archived).map(g => {
-    const p = goalProgress({ ...g, annualRate: g.annualRate / 10_000, accountIds: safeJson<string[]>(g.accountIds, []) }, baseBalances, rtx, today);
-    return { id: g.id, name: g.name, need: goalShare(g.monthly, p.needed, p.left, days) };
-  }).filter(g => g.need > 0), [data.goals, baseBalances, rtx, today, days]);
-
   const pay = toCentavos(amount || '0') || 0;
-  const plan = planPaycheck({ amount: pay, days, bills, dailySpend, goals, investPct });
+  // Planned income for a month, so each pay carries its fair share of every goal's month.
+  const monthlyIncome = plannedBase.recurring.filter(r => r.active && r.kind === 'income')
+    .reduce((s, r) => s + monthlyEquivalent(r.amount, r.frequency), 0);
+  const payShare = payShareOf(pay, monthlyIncome);
+  const goals = data.goals.filter(g => !g.archived).map(g => {
+    const p = goalProgress({ ...g, annualRate: g.annualRate / 10_000, accountIds: safeJson<string[]>(g.accountIds, []) }, baseBalances, rtx, today);
+    return { id: g.id, name: g.name, need: goalShare(g.monthly, p.needed, p.left, days, payShare), room: Math.max(0, p.left), monthly: g.monthly > 0 ? g.monthly : p.needed };
+  }).filter(g => g.need > 0);
+
+  const plan = planPaycheck({ amount: pay, days, bills, dailySpend, goals, investPct, freeToGoals });
+  const afterEssentials = Math.max(0, pay - plan.needs - plan.dayToDay);
   const parts = [
     { key: 'needs', label: 'Bills due before next pay', value: plan.needs, color: c.spend, icon: 'calendar-alert' },
     { key: 'day', label: 'Day-to-day', value: plan.dayToDay, color: c.warn, icon: 'cart-outline' },
@@ -141,9 +147,20 @@ export default function PaycheckPlan() {
             {plan.goals.length ? (
               <List>{plan.goals.map(g => (
                 <Row key={g.id} icon="flag-variant" iconColor={c.mango} title={g.name} onPress={() => router.push(`/goal/${g.id}` as never)}
-                  sub={g.put < g.need ? `Planned ${peso(g.need, { cents: false })} for this pay` : 'Your planned share for this pay'} right={<T v="num">{peso(g.put, { cents: false })}</T>} />
+                  sub={g.put < g.need ? `Planned ${peso(g.need, { cents: false })} for this pay` : g.put > g.need ? `${peso(g.need, { cents: false })} keeps it on track, the rest is extra` : `Keeps it on track · ${peso(g.monthly ?? 0, { cents: false })} a month`}
+                  right={<T v="num">{peso(g.put, { cents: false })}</T>} />
               ))}</List>
             ) : <T v="muted">No goals need money this pay. Add one under Goals with a target date.</T>}
+            {plan.goals.length ? (
+              <View style={{ gap: 10, marginTop: 10 }}>
+                <T v="small">{payShare !== null
+                  ? `This pay is ${Math.round(payShare * 100)}% of your planned ${peso(monthlyIncome, { cents: false })} a month, so it carries ${Math.round(payShare * 100)}% of each goal’s monthly amount.`
+                  : `No planned income yet, so goals get a ${days}-day share of their monthly amount. Add your income under Planned payments to split by pay size instead.`}</T>
+                <T v="small">{`After bills and day-to-day, up to ${peso(afterEssentials, { cents: false })} of this pay could go to goals.`}</T>
+                <Toggle label="Put what’s free into goals" hint="Anything left after investing tops up your goals, split the same way." value={freeToGoals}
+                  onChange={(v) => { setFreeToGoals(v); act(db => setSetting(db, 'paycheckFreeToGoals', v)); }} />
+              </View>
+            ) : null}
           </Section>
 
           <Section title="Invest">
