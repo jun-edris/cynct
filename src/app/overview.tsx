@@ -58,7 +58,7 @@ export default function Overview() {
       <Section title="Accounts" action="Wallet" onAction={() => router.push('/wallet')}>
         {accounts.length ? <List>{accounts.map(a => {
           const b = native.get(a.id) ?? 0;
-          return <Row key={a.id} left={<IconBubble icon={a.icon} color={a.color} />} title={a.name} sub={ACCOUNT_TYPES[a.type]} onPress={() => router.push(`/account/${a.id}`)}
+          return <Row key={a.id} left={<IconBubble icon={a.icon} color={a.color} />} title={a.name} sub={ACCOUNT_TYPES[a.type]} onPress={() => router.push(`/acct/${a.id}`)}
             right={<T v="num" color={b < 0 ? c.spend : c.ink}>{fmt(b, a.id, { cents: false })}</T>} />;
         })}</List> : <Empty title="No accounts" />}
       </Section>

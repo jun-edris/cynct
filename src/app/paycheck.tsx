@@ -3,8 +3,8 @@ import { View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useData, safeJson } from '../data/DataContext';
 import { radius, useTheme } from '../theme';
-import { Block, Button, Card, Chip, DateField, Field, Icon, List, Note, Row, Screen, Section, Select, T, Toggle } from '../components/ui';
-import { GradButton } from '../components/k';
+import { Button, Card, Chip, DateField, Field, Icon, List, Note, Row, Screen, Section, Select, T, Toggle } from '../components/ui';
+import { GradButton, NightGradient } from '../components/k';
 import { useAccountOptions } from '../components/domain';
 import { forecast, goalProgress, monthlyEquivalent, upcoming } from '../lib/ledger';
 import { goalMove, setSetting, softDelete } from '../db/repo';
@@ -31,6 +31,21 @@ function SplitBar({ label, split, pay }: { label: string; split: Split; pay: num
           </View>
         ))}
       </View>
+    </View>
+  );
+}
+
+function StackBlock({ label, value, bg, fg, min, first, last, dashed, sub }: { label: string; value: number; bg: string; fg: string; min: number; first?: boolean; last?: boolean; dashed?: boolean; sub?: string }) {
+  const { c } = useTheme();
+  return (
+    <View style={{ minHeight: min, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: bg, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      borderTopLeftRadius: first ? 14 : 3, borderTopRightRadius: first ? 14 : 3, borderBottomLeftRadius: last ? 14 : 3, borderBottomRightRadius: last ? 14 : 3,
+      borderWidth: dashed ? 2 : 0, borderStyle: dashed ? 'dashed' : 'solid', borderColor: c.ink }}>
+      <View style={{ flex: 1 }}>
+        <T v="medium" color={fg}>{label}</T>
+        {sub ? <T v="small" color={fg} style={{ opacity: 0.75 }}>{sub}</T> : null}
+      </View>
+      <T v="num" color={fg} style={{ fontSize: 19 }}>{peso(value, { cents: false })}</T>
     </View>
   );
 }
@@ -160,26 +175,32 @@ export default function PaycheckPlan() {
 
       {pay > 0 ? (
         <>
-          <Block tone="navy" style={{ marginTop: 22, gap: 14 }}>
-            <View>
-              <T v="semi" color={c.navyMuted}>{`${days} days, until ${dayLabel(next)}`}</T>
-              <T v="display" color={c.navyText}>{peso(plan.free, { cents: false })}</T>
-              <T v="medium" color={c.navyMuted}>{plan.free > 0 ? `free to spend, about ${peso(Math.floor(plan.free / days), { cents: false })} a day on top of day-to-day` : 'nothing left over after the plan'}</T>
-            </View>
-            <View style={{ flexDirection: 'row', height: 18, borderRadius: 9, overflow: 'hidden', backgroundColor: c.navyLine, gap: 2 }} accessibilityLabel="How this pay is split">
-              {parts.filter(p => p.value > 0).map(p => <View key={p.key} style={{ flex: p.value, backgroundColor: p.color }} />)}
-            </View>
-            <View style={{ gap: 8 }}>
-              {parts.map(p => (
-                <View key={p.key} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                  <View style={{ width: 12, height: 12, borderRadius: 4, backgroundColor: p.color }} />
-                  <T v="medium" color={c.navyText} style={{ flex: 1 }}>{p.label}</T>
-                  <T v="semi" color={c.navyMuted} style={{ width: 44, textAlign: 'right' }}>{pct(plan.share(p.value))}</T>
-                  <T v="num" color={c.navyText} style={{ minWidth: 96, textAlign: 'right' }}>{peso(p.value, { cents: false })}</T>
+          {/* K: the pay as a stack of blocks, from what can't wait down to what's free. */}
+          <View style={{ marginTop: 22 }}>
+            <T v="display" style={{ fontSize: 44, lineHeight: 50 }}>{peso(pay, { cents: false })}</T>
+            <T v="muted" style={{ marginTop: 4 }}>{`has to last ${days} day${days === 1 ? '' : 's'}, until ${dayLabel(next)}`}</T>
+          </View>
+          <View style={{ marginTop: 14, gap: 3 }} accessibilityLabel={`How this pay is split: ${parts.map(p => `${p.label} ${peso(p.value, { cents: false })}`).join(', ')}`}>
+            <StackBlock first label={`Bills before ${dayLabel(next)}`} value={plan.needs} bg={c.ink} fg={c.bg} min={52} />
+            <StackBlock label="Day-to-day" value={plan.dayToDay} bg={c.blue} fg="#FFFFFF" min={52} />
+            {plan.save > 0 ? (
+              <NightGradient style={{ borderRadius: 3, padding: 14, minHeight: 120 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                  <T v="semi" color="#FFFFFF">Goals</T>
+                  <T v="display" color="#FFFFFF" style={{ fontSize: 28, lineHeight: 34 }}>{peso(plan.save, { cents: false })}</T>
                 </View>
-              ))}
-            </View>
-          </Block>
+                <View style={{ flex: 1, minHeight: 8 }} />
+                {plan.goals.filter(g => g.put > 0).map(g => (
+                  <View key={g.id} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 7, borderTopWidth: 1, borderColor: 'rgba(255,255,255,0.35)' }}>
+                    <T v="medium" color="#FFFFFF">{g.name}</T><T v="semi" color="#FFFFFF">{peso(g.put, { cents: false })}</T>
+                  </View>
+                ))}
+              </NightGradient>
+            ) : <StackBlock label="Goals" value={0} bg={c.sunk} fg={c.muted} min={44} />}
+            <StackBlock label={`Invest · ${investPct}%`} value={plan.invest} bg={c.tBlue} fg={c.ink} min={44} />
+            <StackBlock last dashed label="Free to spend" value={plan.free} bg="transparent" fg={c.ink} min={44}
+              sub={plan.free > 0 ? `about ${peso(Math.floor(plan.free / days), { cents: false })} a day on top of day-to-day` : undefined} />
+          </View>
 
           <Card style={{ marginTop: 12, gap: 12 }}>
             <View style={{ gap: 8 }}>

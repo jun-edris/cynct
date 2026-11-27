@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Animated, Pressable, View, useWindowDimensions } from 'react-native';
+import { Animated, Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Line, Polygon, Polyline } from 'react-native-svg';
 import { router } from 'expo-router';
@@ -14,7 +14,7 @@ import { CoinJar, Glass, NightGradient, OnNightPill, SentiBadge, SheetUp, useCou
 import { lastMonths, monthFlow } from '../../lib/flow';
 import { setSetting } from '../../db/repo';
 import { compactPeso, peso, todayISO, parseISO, nowMs } from '../../lib/money';
-import { budgetStatus, goalProgress, leftLabel, netWorth, streak, upcoming } from '../../lib/ledger';
+import { budgetStatus, goalProgress, isLiability, leftLabel, netWorth, streak, upcoming } from '../../lib/ledger';
 
 /** A round glass button for the gradient header. */
 function GlassButton({ icon, label, onPress }: { icon: string; label: string; onPress: () => void }) {
@@ -77,7 +77,10 @@ function MonthBars({ months }: { months: { key: string; income: number; expense:
 
 export default function Home() {
   const { c } = useTheme();
-  const { data, act, baseBalances, rtx, cats, goalFunds, plannedBase, missing } = useData();
+  const { data, act, baseBalances, balances, fmt, rtx, cats, goalFunds, plannedBase, missing } = useData();
+  // Accounts strip, biggest balances first (in pesos), cards and loans after.
+  const accounts = data.accounts.filter(a => !a.archived)
+    .sort((x, y) => Number(isLiability(x.type)) - Number(isLiability(y.type)) || (baseBalances.get(y.id) ?? 0) - (baseBalances.get(x.id) ?? 0));
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const [view, setView] = useState<'month' | 'half'>('month');
@@ -109,7 +112,7 @@ export default function Home() {
   const toReview = capturePrefs.enabled ? draftsFrom(data.captured, capturePrefs).drafts.length : 0;
   const alerts = (<>
       {toReview ? (
-        <Card style={{ marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.tViolet }} onPress={() => router.push('/capture')}>
+        <Card style={{ marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.tViolet }} onPress={() => router.push('/sort')}>
           <SentiBadge size={40} />
           <View style={{ flex: 1 }}>
             <T v="semi">{`${toReview} payment${toReview === 1 ? '' : 's'} to sort`}</T>
@@ -260,6 +263,26 @@ export default function Home() {
 
       <SheetUp style={{ marginHorizontal: -18, paddingHorizontal: 18, paddingTop: 4 }}>
       {alerts}
+      {accounts.length ? (
+        <Section title="Accounts" action="Wallet" onAction={() => router.push('/wallet')}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -18 }} contentContainerStyle={{ paddingHorizontal: 18, gap: 8 }}>
+            {accounts.map(a => {
+              const liab = isLiability(a.type);
+              const b = balances.get(a.id) ?? 0;
+              return (
+                <Card key={a.id} onPress={() => router.push(`/acct/${a.id}`)} style={{ width: 132, padding: 12, gap: 6 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: a.color }} />
+                    <T v="small" numberOfLines={1} style={{ flex: 1 }}>{`${a.name}${a.currency !== 'PHP' ? ` · ${a.currency}` : ''}`}</T>
+                  </View>
+                  <T v="num" numberOfLines={1} color={liab && b < 0 ? c.spend : c.ink} style={{ fontSize: 16 }}>{fmt(liab ? Math.max(0, -b) : b, a.id)}</T>
+                  {liab ? <T v="small">owed</T> : null}
+                </Card>
+              );
+            })}
+          </ScrollView>
+        </Section>
+      ) : null}
       {layout.order.filter(k => !layout.hidden.includes(k)).map(k => <React.Fragment key={k}>{blocks[k]}</React.Fragment>)}
       {recap ? (
         <Card style={{ marginTop: 18, flexDirection: 'row', alignItems: 'center', gap: 12 }} onPress={() => router.push('/recap')}>

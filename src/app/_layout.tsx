@@ -118,8 +118,8 @@ function Reminders() {
 }
 
 // Screens whose top is the night gradient get light status bar icons.
-const NIGHT_TOP = new Set(['/', '/saved', '/wallet', '/history', '/plan', '/goals', '/budgets', '/tools/emergency', '/settings']);
-const nightTop = (p: string) => NIGHT_TOP.has(p) || p.startsWith('/goal/');
+const NIGHT_TOP = new Set(['/', '/saved', '/welcome', '/wallet', '/history', '/plan', '/goals', '/budgets', '/tools/emergency', '/settings']);
+const nightTop = (p: string) => NIGHT_TOP.has(p) || p.startsWith('/goal/') || p.startsWith('/acct/');
 
 function Shell() {
   const { c, dark } = useTheme();

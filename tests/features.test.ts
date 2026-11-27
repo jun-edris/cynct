@@ -159,3 +159,14 @@ describe('backup clean-up', () => {
     expect(expiredBackups(['cynct-2026-01-01.json', 'cynct-2026-01-02.json', 'cynct-2026-01-03.json', 'cynct-2026-01-04.json'], '2026-11-27')).toEqual(['cynct-2026-01-01.json']);
   });
 });
+
+import { parseBackupText } from '../src/lib/backupPrune';
+
+describe('reading damaged backups', () => {
+  it('reads normal JSON and recovers a file with a leftover tail', () => {
+    expect(parseBackupText('{"a":1}')).toEqual({ a: 1 });
+    expect(parseBackupText('{"a":{"b":2}}}')).toEqual({ a: { b: 2 } });
+    expect(parseBackupText('﻿{"a":{"b":2}}"}]}')).toEqual({ a: { b: 2 } });
+    expect(parseBackupText('not json')).toBeUndefined();
+  });
+});

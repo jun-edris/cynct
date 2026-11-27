@@ -1,12 +1,12 @@
 import React from 'react';
-import { Image, View } from 'react-native';
+import { Image, Pressable, View } from 'react-native';
 import { router } from 'expo-router';
 import { useData, safeJson } from '../data/DataContext';
 import { useTheme } from '../theme';
-import { Glass, GlassIcon, KHeader, KSheet, OnNight } from '../components/k';
-import { Bar, Card, Empty, Ring, Screen, Section, T } from '../components/ui';
+import { Glass, GlassIcon, KHeader, KSheet, OnNight, OnNightPill } from '../components/k';
+import { Bar, Card, Empty, Icon, Screen, Section, T } from '../components/ui';
 import { goalProgress, leftLabel } from '../lib/ledger';
-import { compactPeso, peso, todayISO } from '../lib/money';
+import { compactPeso, dayLabel, peso, todayISO } from '../lib/money';
 
 export default function Goals() {
   const { c } = useTheme();
@@ -31,6 +31,10 @@ export default function Goals() {
             </Glass>
           ))}
         </View>
+        <Glass style={{ marginTop: 10, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <OnNight style={{ flex: 1 }}>Plan your next pay and move goal money in one tap.</OnNight>
+          <OnNightPill label="Plan" onPress={() => router.push('/paycheck')} style={{ height: 34 }} />
+        </Glass>
       </KHeader>
       <KSheet>
 
@@ -38,19 +42,29 @@ export default function Goals() {
         {all.length ? (
           <View style={{ gap: 12 }}>
             {all.map(({ g, p }) => (
-              <Card key={g.id} onPress={() => router.push(`/goal/${g.id}`)} style={{ flexDirection: 'row', gap: 14, alignItems: 'center' }}>
-                {g.photoUri ? <Image source={{ uri: g.photoUri }} style={{ width: 64, height: 64, borderRadius: 18 }} />
-                  : <Ring pct={p.pct} size={64} stroke={7} color={g.color}><T v="num" style={{ fontSize: 14 }}>{Math.round(p.pct * 100)}%</T></Ring>}
-                <View style={{ flex: 1, gap: 3 }}>
-                  <T v="h3">{g.name}</T>
-                  <T v="small">{peso(p.saved, { cents: false })} of {peso(g.target, { cents: false })}</T>
-                  <T v="small" color={p.pct >= 1 ? c.income : p.onTrack ? c.income : c.warn}>
-                    {p.pct >= 1 ? 'Reached' : p.onTrack ? `On track · ${leftLabel(p.months)}` : p.months < 1 ? `Needs ${compactPeso(p.needed)} by the deadline` : `Needs ${compactPeso(p.needed)}/mo`}
-                  </T>
+              <Card key={g.id} onPress={() => router.push(`/goal/${g.id}`)} style={{ gap: 10 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                  {g.photoUri ? <Image source={{ uri: g.photoUri }} style={{ width: 46, height: 46, borderRadius: 16 }} />
+                    : <View style={{ width: 46, height: 46, borderRadius: 16, backgroundColor: g.color + '30', alignItems: 'center', justifyContent: 'center' }}><Icon name="flag-variant" size={22} color={g.color} /></View>}
+                  <View style={{ flex: 1 }}>
+                    <T v="semi">{g.name}</T>
+                    <T v="small" color={p.pct >= 1 ? c.income : p.onTrack ? c.muted : c.warn}>
+                      {p.pct >= 1 ? 'Reached' : p.onTrack ? `On track · ${leftLabel(p.months)}` : p.months < 1 ? `Needs ${compactPeso(p.needed)} by the deadline` : `Needs ${compactPeso(p.needed)} a month · by ${dayLabel(g.deadline)}`}
+                    </T>
+                  </View>
+                  <T v="num" style={{ fontSize: 18 }}>{`${Math.round(p.pct * 100)}%`}</T>
                 </View>
-                {g.annualRate > 0 ? <T v="label" color={c.income}>{g.annualRate / 100}%</T> : null}
+                <Bar pct={p.pct} color={g.color} height={10} />
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <T v="small">{`${peso(p.saved, { cents: false })} saved${g.annualRate > 0 ? ` · ${g.annualRate / 100}% a year` : ''}`}</T>
+                  <T v="small">{peso(g.target, { cents: false })}</T>
+                </View>
               </Card>
             ))}
+            <Pressable onPress={() => router.push('/goal-edit/new')} accessibilityRole="button"
+              style={{ minHeight: 64, borderRadius: 22, borderWidth: 2, borderStyle: 'dashed', borderColor: c.line, alignItems: 'center', justifyContent: 'center' }}>
+              <T v="semi" color={c.muted}>+ New goal</T>
+            </Pressable>
           </View>
         ) : <Empty icon="flag-outline" title="No goals yet" text="A house, an emergency fund, a trip. Cynct shows exactly how much to save each month." action="Create a goal" onAction={() => router.push('/goal-edit/new')} />}
       </Section>

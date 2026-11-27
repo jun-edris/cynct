@@ -8,7 +8,7 @@ import { exportAll, importAll, applyPwaImport, setSetting, type DB } from '../db
 import { convertPwaBackup, isPwaBackup } from './importPwa';
 import { todayISO } from './money';
 
-import { expiredBackups } from './backupPrune';
+import { expiredBackups, parseBackupText } from './backupPrune';
 
 const backupDir = () => new Directory(Paths.document, 'backups');
 
@@ -58,9 +58,13 @@ export async function runDailyBackup(db: DB, settings: Record<string, unknown>):
 async function writeToFolder(folderUri: string, baseName: string, json: string) {
   const SAF = Legacy.StorageAccessFramework;
   const existing = await SAF.readDirectoryAsync(folderUri);
-  const match = existing.find(u => decodeURIComponent(u).endsWith(`${baseName}.json`));
-  const target = match ?? await SAF.createFileAsync(folderUri, baseName, 'application/json');
+  // Never write over an existing file: Android's document providers open it without truncating, so a
+  // shorter backup leaves the old file's tail behind (that's what produced a trailing "}" and "not JSON").
+  // Write a fresh file, then remove the older copies of today's backup.
+  const old = existing.filter(u => new RegExp(`${baseName}( ?\\(\\d+\\))?\\.json$`).test(decodeURIComponent(u)));
+  const target = await SAF.createFileAsync(folderUri, baseName, 'application/json');
   await Legacy.writeAsStringAsync(target, json, { encoding: Legacy.EncodingType.UTF8 });
+  for (const u of old) if (u !== target) await SAF.deleteAsync(u, { idempotent: true }).catch(() => {});
 }
 
 /** Deletes month-old Cynct backups from the backup folder. Leaves every other file alone. */
@@ -105,11 +109,15 @@ export async function pickBackupFile(): Promise<unknown | null> {
   const res = await DocumentPicker.getDocumentAsync({ type: ['application/json', 'text/plain', '*/*'], copyToCacheDirectory: true });
   if (res.canceled || !res.assets?.[0]) return null;
   const text = await new File(res.assets[0].uri).text();
-  try { return JSON.parse(text); } catch { throw new Error('That file isn’t a valid backup (not JSON).'); }
+  const data = parseBackupText(text);
+  if (data === undefined) throw new Error('That file isn’t a valid backup (not JSON).');
+  return data;
 }
 
 export async function readLocalBackup(uri: string): Promise<unknown> {
-  return JSON.parse(await new File(uri).text());
+  const data = parseBackupText(await new File(uri).text());
+  if (data === undefined) throw new Error('That backup file is damaged.');
+  return data;
 }
 
 /** Restores either a native backup or a web-app (PWA) backup. Returns a summary for the toast. */

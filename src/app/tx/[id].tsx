@@ -9,6 +9,7 @@ import {
 } from '../../components/ui';
 import { CategoryGrid, PhotoField, TagField, useAccountOptions } from '../../components/domain';
 import { GradButton, NightGradient } from '../../components/k';
+import { useSafeToSpend } from '../../data/safe';
 import { learn, recall, type CatMemory } from '../../lib/learn';
 import { budgetCrossings, crossingText } from '../../lib/budgetAlert';
 import { advanceDue, anchorFor } from '../../lib/ledger';
@@ -40,6 +41,7 @@ export default function Entry() {
   const { c } = useTheme();
   const insets = useSafeAreaInsets();
   const { data, act, curOf, rates, rtx, cats } = useData();
+  const safe = useSafeToSpend();
   const existing = data.transactions.find(t => t.id === params.id) ?? data.deleted.find(t => t.id === params.id);
   const isNew = !existing;
   const special = existing && existing.type !== 'expense' && existing.type !== 'income';
@@ -100,6 +102,18 @@ export default function Entry() {
       // A changed amount, account or original figure gets a fresh peso value.
       baseAmount: existing && existing.amount === amt && existing.accountId === accountId && existing.origAmount === (foreign ? typed : null) ? existing.baseAmount : null,
     };
+    // A new entry dated in the future hasn't happened yet: save it as a planned payment (one-time, or
+    // repeating from that date) instead of a transaction, so it shows in Planned and the forecast.
+    if (isNew && date > todayISO()) {
+      const planName = row.note || (data.categories.find(x => x.id === row.categoryId)?.name ?? (kind === 'income' ? 'Income' : 'Expense'));
+      const okPlan = act(db => {
+        upsert.recurring(db, { id: uid(), name: planName, kind: kind === 'income' ? 'income' : 'bill', amount: amt, accountId, toAccountId: null, categoryId: row.categoryId,
+          frequency: repeat ? freq : 'once', nextDue: date, anchorDay: repeat ? anchorFor(freq, date) : null, endDate: null, debtId: null, active: true, createdAt: nowMs() });
+        if (params.capture) setCaptured(db, params.capture.split(','), 'added', null);
+      }, `Planned for ${dayLabel(date)}${repeat ? ', then repeats' : ''}`, { label: 'See it', run: () => router.push('/planned') });
+      if (okPlan) close();
+      return;
+    }
     // Budget alert: does this new spend tip a budget over 80% or its limit?
     const crossed = isNew && kind === 'expense'
       ? budgetCrossings(data.budgets, rtx, cats, { categoryId: row.categoryId, amount: convert(amt, cur, 'PHP', rates) ?? amt, date }, todayISO())[0] : undefined;
@@ -154,7 +168,8 @@ export default function Entry() {
   // A payee you've filed before: offer the same category.
   const suggested = !special && !categoryId && note.trim()
     ? recall(data.settings.catMemory as CatMemory | undefined, note, new Set(data.categories.filter(x => x.kind === kind && !x.archived).map(x => x.id))) : null;
-  const saveLabel = value > 0 ? `Save ${m(Math.round(value * 100))}${catLabel ? ` ${kind === 'income' ? 'from' : 'on'} ${catLabel}` : ''}` : `Save ${kind}`;
+  const futurePlan = isNew && !special && date > todayISO();
+  const saveLabel = futurePlan ? `Plan for ${dayLabel(date)}` : value > 0 ? `Save ${m(Math.round(value * 100))}${catLabel ? ` ${kind === 'income' ? 'from' : 'on'} ${catLabel}` : ''}` : `Save ${kind}`;
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
       {/* K: the amount sits on a night-gradient card. */}
@@ -164,8 +179,11 @@ export default function Entry() {
           <View style={{ flex: 1, alignItems: 'center' }}>
             {special ? <T v="h2" center color="#FFFFFF">{title}</T> : (
               <View style={{ flexDirection: 'row', padding: 3, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.12)' }} accessibilityRole="radiogroup">
-                {([['expense', 'Expense'], ['income', 'Income']] as const).map(([k, l]) => (
-                  <Pressable key={k} onPress={() => { if (kind !== k) { setKind(k); setCategoryId(''); } }} accessibilityRole="radio" accessibilityState={{ selected: kind === k }}
+                {([['expense', 'Expense'], ['income', 'Income'], ...(isNew ? [['transfer', 'Transfer']] as const : [])] as const).map(([k, l]) => (
+                  <Pressable key={k} onPress={() => {
+                    if (k === 'transfer') { router.replace({ pathname: '/transfer/[id]', params: { id: 'new', amount: value > 0 ? String(value) : '' } }); return; }
+                    if (kind !== k) { setKind(k); setCategoryId(''); }
+                  }} accessibilityRole="radio" accessibilityState={{ selected: kind === k }}
                     style={{ height: 34, paddingHorizontal: 16, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: kind === k ? '#FFFFFF' : 'transparent' }}>
                     <T v="semi" color={kind === k ? '#17122D' : '#FFFFFF'} style={{ fontSize: 14 }}>{l}</T>
                   </Pressable>
@@ -185,6 +203,12 @@ export default function Entry() {
               </T>
             </View>
             {hasOperator(expr) ? <T v="medium" color="#E7E0FF">= {money(Math.round(value * 100), entryCur)}</T> : null}
+            {isNew && kind === 'expense' && safe.allowance > 0 ? (() => {
+              const after = safe.left - (convert(Math.round(value * 100), entryCur, 'PHP', rates) ?? Math.round(value * 100));
+              return <T v="small" color={after < 0 ? '#FF9CCB' : '#E7E0FF'} style={{ marginTop: 6 }}>{after < 0
+                ? `${peso(-after, { cents: false })} over today’s ${peso(safe.allowance, { cents: false })}`
+                : `${peso(after, { cents: false })} of today’s ${peso(safe.allowance, { cents: false })} left after this`}</T>;
+            })() : null}
             <View style={{ width: 44, height: 4, borderRadius: 2, backgroundColor: keypadOpen ? '#FFFFFF' : 'rgba(255,255,255,0.3)', marginTop: 6 }} />
           </Pressable>
         )}
@@ -226,6 +250,7 @@ export default function Entry() {
           </View>
         ) : null}
         {!special ? <CategoryGrid kind={kind} value={categoryId} onChange={(id) => { setCategoryId(id); }} /> : null}
+        {futurePlan ? <Note tone="info" icon="calendar-clock">{`That date hasn’t come yet, so this is saved as a planned payment for ${dayLabel(date)}${repeat ? ' that repeats' : ''}, not as money spent. Mark it paid when it happens.`}</Note> : null}
         <FormRow>
           <DateField label="Date" value={date} onChange={(v) => v && setDate(v)} />
           <TimeField label="Time" value={time} onChange={setTime} />

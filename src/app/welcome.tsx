@@ -1,30 +1,29 @@
-import React from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Animated, Easing, Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useData } from '../data/DataContext';
-import { useTheme, radius } from '../theme';
-import { Icon, IconBubble, T } from '../components/ui';
+import { Icon, T } from '../components/ui';
+import { NightGradient, OnNightPill, Senti, useLoop, useReduceMotion } from '../components/k';
 import { Logo } from '../components/Logo';
 import { applySeed } from '../db/repo';
 import { emptySetup, mySetup } from '../lib/seed';
 import { pickBackupFile, restoreFromData } from '../lib/backup';
 
 export default function Welcome() {
-  const { c } = useTheme();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const { act, db, toast, reload } = useData();
 
-  const choice = (icon: string, title: string, body: string, onPress: () => void, primary = false) => (
+  const choice = (title: string, body: string, onPress: () => void) => (
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={title}
-      style={({ pressed }) => ({ padding: 16, borderRadius: radius.lg, flexDirection: 'row', alignItems: 'center', gap: 14,
-        backgroundColor: primary ? c.mango : c.navyLine, opacity: pressed ? 0.85 : 1 })}>
-      <IconBubble icon={icon} color={primary ? '#0B1426' : c.mango} solid={primary} iconColor={primary ? c.mango : undefined} />
+      style={({ pressed }) => ({ padding: 14, borderRadius: 18, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: 'rgba(255,255,255,0.13)',
+        borderWidth: 1, borderColor: 'rgba(255,255,255,0.26)', transform: [{ scale: pressed ? 0.98 : 1 }] })}>
       <View style={{ flex: 1, gap: 2 }}>
-        <T v="h3" color={primary ? c.onMango : c.navyText}>{title}</T>
-        <T v="small" color={primary ? c.onMango : c.navyMuted}>{body}</T>
+        <T v="semi" color="#FFFFFF">{title}</T>
+        <T v="small" color="#E7E0FF">{body}</T>
       </View>
-      <Icon name="chevron-right" color={primary ? c.onMango : c.navyMuted} />
+      <Icon name="chevron-right" color="#E7E0FF" />
     </Pressable>
   );
 
@@ -40,24 +39,70 @@ export default function Welcome() {
   };
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: c.navy }} contentContainerStyle={{ paddingTop: insets.top + 40, paddingBottom: insets.bottom + 30 }}>
-      <View style={{ paddingHorizontal: 22, gap: 12 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-          <Logo size={40} bg={c.navyLine} />
-          <T v="h2" color={c.navyText}>Cynct</T>
+    <NightGradient style={{ flex: 1 }}>
+      <ScrollView contentContainerStyle={{ paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24, paddingHorizontal: 20, flexGrow: 1 }}>
+        <WalkIn width={width - 40} />
+        <View style={{ gap: 12, marginTop: 18 }}>
+          <T v="display" color="#FFFFFF" style={{ fontSize: 44, lineHeight: 46, letterSpacing: -1.6 }}>{'Every centavo,\nin sync.'}</T>
+          <T v="medium" color="#E7E0FF" style={{ fontSize: 15, lineHeight: 22 }}>Spending, accounts, bills and every goal, from a new phone to a house. Stays on this phone and works offline.</T>
+          {choice('Load my starting setup', 'Wise, GoTyme, Maya, GCash, house and emergency funds',
+            () => { if (act(d => applySeed(d, mySetup()), 'Setup loaded. Set each account’s real balance.')) router.replace('/'); })}
+          {choice('Restore a backup', 'A Cynct or Bahay .json file', restore)}
+          <OnNightPill label="Start empty" style={{ height: 52, borderRadius: 26, marginTop: 4 }}
+            onPress={() => { if (act(d => applySeed(d, emptySetup()))) router.replace('/wallet'); }} />
         </View>
-        <T v="display" color={c.navyText} style={{ fontSize: 40, lineHeight: 44, marginTop: 18 }}>Every centavo, in sync.</T>
-        <T v="medium" color={c.navyMuted}>Spending, accounts, bills, debts and every goal you’re saving for, from a new phone to a house. Your data stays on this phone and works offline.</T>
-      </View>
-      <View style={{ alignItems: 'center', marginVertical: 28 }}>
-        <Logo size={168} tile={false} />
-      </View>
-      <View style={{ paddingHorizontal: 22, gap: 12, marginTop: 6 }}>
-        {choice('rocket-launch-outline', 'Load my starting setup', 'Wise, GoTyme, Maya, GCash, MariBank, Cash, house and emergency funds, bills, paydays and the ₱2.8M house goal.',
-          () => { if (act(d => applySeed(d, mySetup()), 'Setup loaded. Set each account’s real balance.')) router.replace('/'); }, true)}
-        {choice('backup-restore', 'Restore a backup', 'A Cynct backup (.json), including ones made when it was called Bahay.', restore)}
-        {choice('plus-circle-outline', 'Start empty', 'Just the categories. Add your own accounts.', () => { if (act(d => applySeed(d, emptySetup()))) router.replace('/wallet'); })}
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </NightGradient>
+  );
+}
+
+/**
+ * The logo, then Senti walks in from the right, stops beside it, folds his arms and leans on it.
+ * With Reduce motion he's simply there, leaning.
+ */
+function WalkIn({ width }: { width: number }) {
+  const reduce = useReduceMotion();
+  const logo = 132, senti = 118;
+  const stageH = Math.max(logo, senti * 1.25) + 4;
+  const logoLeft = Math.max(0, width / 2 - logo + 4);
+  const restLeft = logoLeft + logo - senti * 0.2; // overlaps the tile's edge so he leans on it
+  const [phase, setPhase] = useState<'walk' | 'lean'>(reduce ? 'lean' : 'walk');
+  const [v] = useState(() => ({ x: new Animated.Value(reduce ? 0 : width - restLeft + 20), lean: new Animated.Value(reduce ? 1 : 0), pop: new Animated.Value(reduce ? 1 : 0) }));
+  const step = useLoop(420, phase === 'walk' && !reduce, 0, Easing.linear);
+
+  useEffect(() => {
+    if (reduce) return;
+    const run = Animated.sequence([
+      Animated.spring(v.pop, { toValue: 1, stiffness: 300, damping: 16, mass: 1, useNativeDriver: true }),
+      Animated.delay(150),
+      Animated.timing(v.x, { toValue: 0, duration: 1900, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+    ]);
+    run.start(({ finished }) => {
+      if (!finished) return;
+      setPhase('lean');
+      Animated.spring(v.lean, { toValue: 1, stiffness: 160, damping: 12, mass: 1, useNativeDriver: true }).start();
+    });
+    return () => run.stop();
+  }, [reduce, v]);
+
+  const walking = phase === 'walk';
+  return (
+    <View style={{ height: stageH, width }} accessible accessibilityRole="image" accessibilityLabel="Cynct logo with Senti leaning on it, arms crossed">
+      <Animated.View style={{ position: 'absolute', left: logoLeft, bottom: 0, transform: [{ scale: v.pop }] }}>
+        <Logo size={logo} bg="#1E1647" />
+      </Animated.View>
+      <Animated.View style={{ position: 'absolute', left: restLeft, bottom: 0, width: senti, height: senti * 1.25, transformOrigin: '50% 96%',
+        transform: [
+          { translateX: v.x },
+          // A little bob with each step while walking.
+          { translateY: walking ? step.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0, -5, 0] }) : 0 },
+          { rotate: v.lean.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '-11deg'] }) },
+        ] }}>
+        <Senti size={senti} face="smile" arms={walking ? 'rest' : 'crossed'}
+          legs={walking ? step.interpolate({ inputRange: [0, 1], outputRange: ['-14deg', '14deg'] }) : undefined}
+          left={walking ? step.interpolate({ inputRange: [0, 1], outputRange: ['16deg', '-16deg'] }) : undefined}
+          right={walking ? step.interpolate({ inputRange: [0, 1], outputRange: ['-16deg', '16deg'] }) : undefined} />
+      </Animated.View>
+    </View>
   );
 }

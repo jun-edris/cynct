@@ -14,3 +14,22 @@ export function expiredBackups(names: string[], today: string, days = KEEP_DAYS)
   const cutoff = addDays(today, -days);
   return dated.slice(KEEP_MIN).filter(x => x.d < cutoff).map(x => x.n);
 }
+
+/**
+ * Parses a backup file, recovering ones with leftover bytes after the real JSON (a file that was
+ * overwritten in place without being truncated). Returns undefined if no valid JSON object is found.
+ */
+export function parseBackupText(text: string): unknown {
+  const t = text.replace(/^\uFEFF/, '').trim();
+  try { return JSON.parse(t); } catch { /* try to recover below */ }
+  // Walk back through closing braces until the text up to one of them parses.
+  let end = t.lastIndexOf('}');
+  for (let tries = 0; end > 0 && tries < 200; tries++) {
+    try {
+      const v = JSON.parse(t.slice(0, end + 1));
+      if (v && typeof v === 'object') return v;
+    } catch { /* keep looking */ }
+    end = t.lastIndexOf('}', end - 1);
+  }
+  return undefined;
+}

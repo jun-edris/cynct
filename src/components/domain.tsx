@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Animated, Image, Pressable, View } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Animated, Image, Pressable, ScrollView, View } from 'react-native';
 import Svg, { ClipPath, Defs, G, Line, Path, Rect, Text as SvgText } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
@@ -10,6 +10,7 @@ import { useData, safeJson } from '../data/DataContext';
 import { fonts, radius, useTheme, type Colors } from '../theme';
 import { Button, Chip, Field, Icon, IconBubble, IconButton, Row, Sheet, T, formatTime, type Option } from './ui';
 import { dayLabel, peso, uid } from '../lib/money';
+import { haptic } from './motion';
 import { dueStatus, type UpcomingItem } from '../lib/ledger';
 import { ACCOUNT_TYPES, SWATCHES } from '../lib/seed';
 import type { Account, Category, Transaction } from '../db/schema';
@@ -154,40 +155,59 @@ export function UpcomingRow({ item, onPay }: { item: UpcomingItem; onPay?: () =>
 }
 
 // ---------- category grid (entry screen) ----------
+/**
+ * K category picker: a sideways row of icon tiles (your most-used first), "All" to see every category,
+ * and the chosen category's subcategories as chips underneath.
+ */
 export function CategoryGrid({ kind, value, onChange }: { kind: 'expense' | 'income'; value: string; onChange: (id: string) => void }) {
   const { c } = useTheme();
   const { data } = useData();
   const [all, setAll] = useState(false);
-  const roots = data.categories.filter(x => x.kind === kind && !x.archived && !x.parentId);
+  const roots = useMemo(() => {
+    const list = data.categories.filter(x => x.kind === kind && !x.archived && !x.parentId);
+    // Most-used first (by root), the rest in your order.
+    const uses = new Map<string, number>();
+    const rootOf = (id: string | null) => { const x = data.categories.find(y => y.id === id); return x?.parentId ?? x?.id ?? null; };
+    for (const t of data.transactions) { if (t.deletedAt || t.type !== kind) continue; const r = rootOf(t.categoryId); if (r) uses.set(r, (uses.get(r) ?? 0) + 1); }
+    return [...list].sort((a, b) => (uses.get(b.id) ?? 0) - (uses.get(a.id) ?? 0) || a.sort - b.sort);
+  }, [data.categories, data.transactions, kind]);
   const selected = data.categories.find(x => x.id === value);
   const selectedRoot = selected?.parentId ?? selected?.id;
   const children = selectedRoot ? data.categories.filter(x => x.parentId === selectedRoot && !x.archived) : [];
-  const shown = all ? roots : roots.slice(0, 8);
+  const tile = (cat: (typeof roots)[number]) => {
+    const on = selectedRoot === cat.id;
+    return (
+      <Pressable key={cat.id} onPress={() => { haptic('select'); onChange(on && value === cat.id ? '' : cat.id); }} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel={cat.name}
+        style={{ width: 70, alignItems: 'center', gap: 6 }}>
+        <View style={{ width: 52, height: 52, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: cat.color + (on ? '40' : '24'),
+          borderWidth: 2, borderColor: on ? c.ink : 'transparent' }}>
+          <Icon name={cat.icon} size={24} color={cat.color} />
+        </View>
+        <T v={on ? 'semi' : 'medium'} center numberOfLines={1} style={{ fontSize: 12 }}>{cat.name}</T>
+      </Pressable>
+    );
+  };
+  const addTile = (
+    <Pressable key="add" onPress={() => router.push({ pathname: '/category/[id]', params: { id: 'new', kind } })} accessibilityRole="button" accessibilityLabel="Add category" style={{ width: 70, alignItems: 'center', gap: 6 }}>
+      <View style={{ width: 52, height: 52, borderRadius: 18, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderStyle: 'dashed', borderColor: c.faint }}>
+        <Icon name="plus" size={22} color={c.muted} />
+      </View>
+      <T v="medium" center style={{ fontSize: 12 }} color={c.muted}>Add</T>
+    </Pressable>
+  );
   return (
     <View style={{ gap: 10 }}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
         <T v="label">Category</T>
-        {roots.length > 8 ? <Pressable onPress={() => setAll(!all)} hitSlop={8}><T v="semi" style={{ fontSize: 14 }}>{all ? 'Show less' : `All ${roots.length}`}</T></Pressable> : null}
+        <Pressable onPress={() => setAll(!all)} hitSlop={8} accessibilityRole="button"><T v="semi" style={{ fontSize: 14 }}>{all ? 'Show less' : `All ${roots.length}`}</T></Pressable>
       </View>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-        {shown.map(cat => {
-          const on = selectedRoot === cat.id;
-          return (
-            <Pressable key={cat.id} onPress={() => onChange(on && value === cat.id ? '' : cat.id)} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel={cat.name}
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 6, paddingRight: 14, paddingVertical: 6, borderRadius: radius.pill,
-                backgroundColor: on ? cat.color : c.surface, borderWidth: 1, borderColor: on ? cat.color : c.line }}>
-              <View style={{ width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? 'rgba(11,20,38,0.12)' : cat.color + '22' }}>
-                <Icon name={cat.icon} size={17} color={on ? '#0B1426' : cat.color} />
-              </View>
-              <T v="semi" color={on ? '#0B1426' : c.ink} style={{ fontSize: 14 }}>{cat.name}</T>
-            </Pressable>
-          );
-        })}
-        <Pressable onPress={() => router.push({ pathname: '/category/[id]', params: { id: 'new', kind } })} accessibilityRole="button" accessibilityLabel="Add category"
-          style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: radius.pill, borderWidth: 1.5, borderStyle: 'dashed', borderColor: c.faint }}>
-          <Icon name="plus" size={17} color={c.muted} /><T v="semi" color={c.muted} style={{ fontSize: 14 }}>Add</T>
-        </Pressable>
-      </View>
+      {all ? (
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', rowGap: 12, columnGap: 4 }}>{roots.map(tile)}{addTile}</View>
+      ) : (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -18 }} contentContainerStyle={{ paddingHorizontal: 14, gap: 4 }}>
+          {roots.map(tile)}{addTile}
+        </ScrollView>
+      )}
       {children.length ? (
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
           {children.map(ch => <Chip key={ch.id} label={ch.name} icon={ch.icon} color={ch.color} selected={value === ch.id} onPress={() => onChange(value === ch.id ? selectedRoot! : ch.id)} />)}

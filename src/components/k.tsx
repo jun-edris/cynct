@@ -3,7 +3,8 @@
 // on the native driver (transform and opacity only) and respect the phone's Reduce motion setting.
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing, Pressable, Text, View, type StyleProp, type ViewStyle } from 'react-native';
-import Svg, { Circle, Defs, Ellipse, G, LinearGradient, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
+import Svg, { Circle, ClipPath, Defs, Ellipse, G, LinearGradient, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
+import { jarShape, pile } from '../lib/jar';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fonts, useTheme } from '../theme';
@@ -133,7 +134,7 @@ function Layer({ w, rotate, origin, scaleY, children }: { w: number; rotate?: Ro
 const glove = (x: number, y: number) => <Circle cx={x} cy={y} r={9.5} fill="#fff" stroke={INK} strokeWidth={3} />;
 
 export type SentiFace = 'grin' | 'smile' | 'content';
-export type SentiArms = 'wave' | 'up' | 'rest';
+export type SentiArms = 'wave' | 'up' | 'rest' | 'crossed';
 
 /**
  * Senti standing. `left`/`right`/`legs` are rotations (e.g. from useSentiMotion) for the waving arm,
@@ -150,16 +151,16 @@ export function Senti({ size = 110, face = 'smile', arms = 'rest', left, right, 
         <Path d="M70 138 q-6 24 -16 40 M90 138 q6 24 16 40" stroke={INK} strokeWidth={5} fill="none" strokeLinecap="round" />
         <Ellipse cx={50} cy={182} rx={15} ry={8} fill={INK} /><Ellipse cx={110} cy={182} rx={15} ry={8} fill={INK} />
       </Layer>
-      <Layer w={size} rotate={right} origin="76% 48%">
+      {arms !== 'crossed' ? <Layer w={size} rotate={right} origin="76% 48%">
         {arms === 'up'
           ? <G><Path d="M122 92 q22 -10 24 -42" stroke={INK} strokeWidth={5} fill="none" strokeLinecap="round" />{glove(146, 44)}</G>
           : <G><Path d="M122 100 q20 8 14 30" stroke={INK} strokeWidth={5} fill="none" strokeLinecap="round" />{glove(136, 132)}</G>}
-      </Layer>
-      <Layer w={size} rotate={left} origin="24% 47%">
+      </Layer> : null}
+      {arms !== 'crossed' ? <Layer w={size} rotate={left} origin="24% 47%">
         {arms === 'rest'
           ? <G><Path d="M38 100 q-20 8 -14 30" stroke={INK} strokeWidth={5} fill="none" strokeLinecap="round" />{glove(24, 132)}</G>
           : <G><Path d="M38 92 q-22 -10 -24 -42" stroke={INK} strokeWidth={5} fill="none" strokeLinecap="round" />{glove(14, 44)}</G>}
-      </Layer>
+      </Layer> : null}
       <Layer w={size} origin="50% 46%">
         <Circle cx={80} cy={92} r={50} fill={COIN} stroke={INK} strokeWidth={4} />
         <Circle cx={80} cy={92} r={41} fill="none" stroke={INK} strokeWidth={1.6} strokeDasharray="2 4" opacity={0.5} />
@@ -169,6 +170,15 @@ export function Senti({ size = 110, face = 'smile', arms = 'rest', left, right, 
         <Circle cx={53} cy={102} r={5} fill={PINK} opacity={0.35} /><Circle cx={107} cy={102} r={5} fill={PINK} opacity={0.35} />
         {face === 'content' ? <Path d="M60 88 q7 -9 14 0 M86 88 q7 -9 14 0" stroke={INK} strokeWidth={4.5} fill="none" strokeLinecap="round" /> : null}
       </Layer>
+      {arms === 'crossed' ? (
+        <Layer w={size} origin="50% 50%">
+          {/* Arms folded across the lower half of the coin: right arm under, left arm over. */}
+          <Path d="M127 100 C134 116 118 128 64 122" stroke={INK} strokeWidth={6} fill="none" strokeLinecap="round" />
+          <Circle cx={58} cy={121} r={9} fill="#fff" stroke={INK} strokeWidth={3} />
+          <Path d="M33 100 C26 118 44 130 98 120" stroke={INK} strokeWidth={6} fill="none" strokeLinecap="round" />
+          <Circle cx={104} cy={118} r={9} fill="#fff" stroke={INK} strokeWidth={3} />
+        </Layer>
+      ) : null}
       {face !== 'content' ? (
         <Layer w={size} origin="50% 43%" scaleY={eye}>
           <Ellipse cx={67} cy={86} rx={7} ry={11} fill={INK} /><Path d="M70 79 l-6 6 h7z" fill="#fff" />
@@ -291,91 +301,86 @@ export function OnNight({ children, v = 'sm', style }: { children: React.ReactNo
 }
 
 // ---------- coin jar ----------
-/** A plain ₱ coin seen face-on: Senti without his face, for filling jars. */
-function CoinShape({ cx, cy, r }: { cx: number; cy: number; r: number }) {
+/** A plain ₱ coin seen at an angle: Senti without his face, with its edge showing. `tilt` is height/width. */
+function TiltCoin({ x, y, r, rot, tilt }: { x: number; y: number; r: number; rot: number; tilt: number }) {
+  const ry = r * tilt, t = r * 0.24;
   return (
-    <G>
-      <Circle cx={cx} cy={cy} r={r} fill={COIN} stroke={INK} strokeWidth={r * 0.16} />
-      <Circle cx={cx} cy={cy} r={r * 0.7} fill="none" stroke={INK} strokeWidth={r * 0.07} strokeDasharray={`${r * 0.12} ${r * 0.22}`} opacity={0.5} />
-      <Ellipse cx={cx - r * 0.35} cy={cy - r * 0.4} rx={r * 0.22} ry={r * 0.12} fill="#FFFFFF" opacity={0.55} transform={`rotate(-35 ${cx - r * 0.35} ${cy - r * 0.4})`} />
+    <G transform={`rotate(${rot} ${x} ${y})`}>
+      <Path d={`M${x - r} ${y} L${x - r} ${y + t} A${r} ${ry} 0 0 0 ${x + r} ${y + t} L${x + r} ${y} Z`} fill="#D98A0C" stroke={INK} strokeWidth={1.2} />
+      <Ellipse cx={x} cy={y} rx={r} ry={ry} fill={COIN} stroke={INK} strokeWidth={1.2} />
+      <Ellipse cx={x} cy={y} rx={r * 0.66} ry={ry * 0.66} fill="none" stroke="#C77700" strokeWidth={1.3} />
+      <Ellipse cx={x - r * 0.35} cy={y - ry * 0.35} rx={r * 0.22} ry={ry * 0.2} fill="#FFFFFF" opacity={0.6} />
     </G>
   );
 }
 
-// Small, stable wobble per coin so the pile looks tossed in, not gridded.
-const jit = (i: number) => (((i * 9301 + 49297) % 233280) / 233280 - 0.5);
-
 /**
- * A glass jar that fills with faceless ₱ coins as a goal fills up. The last few coins drop in when it
- * appears (skipped with Reduce motion). `onDark` draws the glass for a gradient or night background.
+ * An open glass jar holding a heap of faceless ₱ coins, fuller as a goal fills up. The top few coins drop
+ * in through the mouth, tumbling, when it appears (skipped with Reduce motion). Coins are clipped to the
+ * glass, so nothing can sit outside it.
  */
 export function CoinJar({ pct, width = 150, label, onDark = true }: { pct: number; width?: number; label?: string; onDark?: boolean }) {
   const reduce = useReduceMotion();
-  const W = width, H = width * 1.22;
+  const j = jarShape(width);
+  const { W, H } = j;
   const glass = onDark ? '#FFFFFF' : INK;
-  // Jar geometry (in px): a lid, a short neck and a rounded body.
-  const lidW = W * 0.62, lidH = H * 0.07, neckW = W * 0.56, neckY = lidH, bodyY = H * 0.2;
-  const left = W * 0.06, right = W * 0.94, bottom = H * 0.97, rad = W * 0.16;
-  const body = `M${(W - neckW) / 2} ${neckY} L${(W - neckW) / 2} ${bodyY - rad * 0.3} Q${(W - neckW) / 2} ${bodyY} ${left + rad} ${bodyY}`
-    + ` Q${left} ${bodyY} ${left} ${bodyY + rad} L${left} ${bottom - rad} Q${left} ${bottom} ${left + rad} ${bottom} L${right - rad} ${bottom}`
-    + ` Q${right} ${bottom} ${right} ${bottom - rad} L${right} ${bodyY + rad} Q${right} ${bodyY} ${right - rad} ${bodyY}`
-    + ` Q${(W + neckW) / 2} ${bodyY} ${(W + neckW) / 2} ${bodyY - rad * 0.3} L${(W + neckW) / 2} ${neckY} Z`;
-
-  // Pack coins in offset rows inside the body.
-  const r = Math.max(7, W * 0.075);
-  const innerL = left + r * 0.9, innerR = right - r * 0.9, floor = bottom - r * 1.05, ceil = bodyY + r * 0.6;
-  const cols = Math.max(1, Math.floor((innerR - innerL) / (r * 2)) + 1);
-  const rowH = r * 1.7;
-  const rows = Math.max(1, Math.floor((floor - ceil) / rowH) + 1);
-  const spots: { x: number; y: number }[] = [];
-  for (let row = 0; row < rows; row++) {
-    const shift = row % 2 ? r : 0;
-    const n = row % 2 ? cols - 1 : cols;
-    for (let k = 0; k < n; k++) {
-      const i = spots.length;
-      spots.push({ x: innerL + shift + k * ((innerR - innerL) / Math.max(1, cols - 1)) + jit(i) * r * 0.35, y: floor - row * rowH + jit(i + 7) * r * 0.25 });
-    }
-  }
+  const clip = useId().replace(/[^a-zA-Z0-9]/g, '');
   const p = Math.max(0, Math.min(1, pct));
-  const count = p <= 0 ? 0 : Math.max(1, Math.round(p * spots.length));
-  const animN = reduce ? 0 : Math.min(6, count);
-  const still = spots.slice(0, count - animN);
-  const falling = spots.slice(count - animN, count);
+  const heap = pile(j, p);
+  const animN = reduce ? 0 : Math.min(4, heap.coins.length);
+  // The highest coins are the ones that drop in.
+  const order = heap.coins.map((c, i) => ({ c, i })).sort((a, b) => a.c.y - b.c.y);
+  const fallIds = new Set(order.slice(0, animN).map(o => o.i));
+  const still = heap.coins.filter((_, i) => !fallIds.has(i));
+  const falling = heap.coins.filter((_, i) => fallIds.has(i));
 
   return (
     <View style={{ width: W, height: H }} accessible accessibilityRole="image" accessibilityLabel={`Coin jar ${Math.round(p * 100)}% full${label ? `, goal ${label}` : ''}`}>
       <Svg width={W} height={H} style={{ position: 'absolute' }}>
-        <Path d={body} fill={glass} opacity={0.08} />
-        {still.map((s, i) => <CoinShape key={i} cx={s.x} cy={s.y} r={r} />)}
+        <Defs><ClipPath id={clip}><Path d={j.body} /></ClipPath></Defs>
+        <Path d={j.body} fill={glass} opacity={0.08} />
+        <G clipPath={`url(#${clip})`}>{still.map((c, i) => <TiltCoin key={i} x={c.x} y={c.y} r={heap.r} rot={c.rot} tilt={c.tilt} />)}</G>
       </Svg>
-      {falling.map((s, i) => <FallingCoin key={i} x={s.x} y={s.y} r={r} delay={250 + i * 140} from={-s.y - r * 2} />)}
+      {falling.map((c, i) => <FallingCoin key={i} cx={W / 2} x={c.x} y={c.y} r={heap.r} rot={c.rot} tilt={c.tilt} delay={250 + i * 180} />)}
       <Svg width={W} height={H} style={{ position: 'absolute' }} pointerEvents="none">
-        <Path d={body} fill="none" stroke={glass} strokeWidth={2.5} opacity={0.75} />
-        <Path d={`M${left + W * 0.07} ${bodyY + rad} L${left + W * 0.07} ${bottom - rad * 1.4}`} stroke={glass} strokeWidth={3} strokeLinecap="round" opacity={0.35} />
-        <Rect x={(W - lidW) / 2} y={0} width={lidW} height={lidH} rx={lidH / 2.4} fill={onDark ? 'rgba(255,255,255,0.28)' : 'rgba(23,18,45,0.18)'} stroke={glass} strokeWidth={2} strokeOpacity={0.75} />
+        <Path d={j.body} fill="none" stroke={glass} strokeWidth={2.5} opacity={0.75} />
+        <Path d={`M${j.left + W * 0.07} ${j.bodyY + j.rad} L${j.left + W * 0.07} ${j.bottom - j.rad * 1.4}`} stroke={glass} strokeWidth={3} strokeLinecap="round" opacity={0.35} />
+        <Rect x={j.rimX} y={j.rimY} width={j.rimW} height={j.rimH} rx={j.rimH / 2.4} fill={onDark ? 'rgba(255,255,255,0.18)' : 'rgba(23,18,45,0.12)'} stroke={glass} strokeWidth={2} strokeOpacity={0.75} />
       </Svg>
       {label ? (
-        <View style={{ position: 'absolute', right: -4, top: H * 0.24, backgroundColor: '#FFFFFF', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1.5, borderColor: INK, transform: [{ rotate: '6deg' }] }}>
-          <Text style={{ fontFamily: fonts.num, fontSize: 12, color: INK }}>{label}</Text>
+        // A paper label stuck across the middle of the glass, held by a strip of tape.
+        <View pointerEvents="none" style={{ position: 'absolute', left: W * 0.14, right: W * 0.14, top: H * 0.4, alignItems: 'center' }}>
+          <View style={{ alignSelf: 'stretch', backgroundColor: '#FFFFFF', borderRadius: 6, borderWidth: 1.5, borderColor: INK, paddingVertical: W * 0.035, alignItems: 'center' }}>
+            <Text style={{ fontFamily: fonts.numBlack, fontSize: Math.max(13, W * 0.12), color: INK, letterSpacing: -0.5 }} numberOfLines={1} adjustsFontSizeToFit>{label}</Text>
+          </View>
+          <View style={{ position: 'absolute', top: -W * 0.03, width: W * 0.12, height: W * 0.07, backgroundColor: COIN, borderWidth: 1.2, borderColor: INK, borderRadius: 2 }} />
         </View>
       ) : null}
     </View>
   );
 }
 
-function FallingCoin({ x, y, r, delay, from }: { x: number; y: number; r: number; delay: number; from: number }) {
+/** A coin dropping in through the jar's mouth, tumbling as it falls, landing at its place on the heap. */
+function FallingCoin({ cx, x, y, r, rot, tilt, delay }: { cx: number; x: number; y: number; r: number; rot: number; tilt: number; delay: number }) {
   const [v] = useState(() => new Animated.Value(0));
   useEffect(() => {
-    const a = Animated.sequence([Animated.delay(delay), Animated.timing(v, { toValue: 1, duration: 520, easing: Easing.bounce, useNativeDriver: true })]);
+    const a = Animated.sequence([Animated.delay(delay), Animated.timing(v, { toValue: 1, duration: 650, easing: Easing.in(Easing.quad), useNativeDriver: true })]);
     a.start();
     return () => a.stop();
   }, [v, delay]);
-  const size = r * 2 + 4;
+  const size = r * 2.6;
+  const startY = -r * 2.5;
   return (
     <Animated.View pointerEvents="none" style={{ position: 'absolute', left: x - size / 2, top: y - size / 2, width: size, height: size,
-      opacity: v.interpolate({ inputRange: [0, 0.05, 1], outputRange: [0, 1, 1] }),
-      transform: [{ translateY: v.interpolate({ inputRange: [0, 1], outputRange: [from, 0] }) }, { rotate: v.interpolate({ inputRange: [0, 1], outputRange: ['-90deg', '0deg'] }) }] }}>
-      <Svg width={size} height={size}><CoinShape cx={size / 2} cy={size / 2} r={r} /></Svg>
+      opacity: v.interpolate({ inputRange: [0, 0.04, 1], outputRange: [0, 1, 1] }),
+      transform: [
+        { translateX: v.interpolate({ inputRange: [0, 1], outputRange: [cx - x, 0] }) },
+        { translateY: v.interpolate({ inputRange: [0, 1], outputRange: [startY - y, 0] }) },
+        { rotate: v.interpolate({ inputRange: [0, 1], outputRange: ['-200deg', '0deg'] }) },
+        // Tumbling: the coin turns edge-on and back as it falls.
+        { scaleY: v.interpolate({ inputRange: [0, 0.25, 0.5, 0.75, 1], outputRange: [1, 0.25, 1, 0.3, 1] }) },
+      ] }}>
+      <Svg width={size} height={size}><TiltCoin x={size / 2} y={size / 2 - r * 0.12} r={r} rot={rot} tilt={tilt} /></Svg>
     </Animated.View>
   );
 }

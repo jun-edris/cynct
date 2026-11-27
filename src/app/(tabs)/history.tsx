@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Pressable, SectionList, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, SectionList, StyleSheet, TextInput, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useData, safeJson } from '../../data/DataContext';
@@ -46,6 +46,8 @@ export default function History() {
   const catName = useCategoryName();
   const today = todayISO();
   const presets = rangePresets(today);
+  // Future-dated entries exist sometimes (scheduled or mistyped dates): let the months reach them.
+  const latest = data.transactions.reduce((m, t) => (!t.deletedAt && t.date > m ? t.date : m), today);
   const [range, setRange] = useState(presets[0]);
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
@@ -131,23 +133,26 @@ export default function History() {
             <T v="h2">{isMonth ? monthLabel(range.start.slice(0, 7)) : range.label}</T>
             {!isMonth && range.key !== 'all' ? <T v="small">{dayLabel(range.start)} – {dayLabel(range.end)}</T> : null}
           </Pressable>
-          {isMonth && range.end < today ? <IconButton name="chevron-right" label="Next month" onPress={() => shiftMonth(1)} /> : <View style={{ width: 44 }} />}
+          {isMonth && range.end < latest ? <IconButton name="chevron-right" label="Next month" onPress={() => shiftMonth(1)} /> : <View style={{ width: 44 }} />}
         </View>
       ) : <T v="small" style={{ marginBottom: 4 }}>{filtered.length} result{filtered.length === 1 ? '' : 's'} across all time</T>}
 
       <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
-        <View style={{ flex: 1, backgroundColor: c.surface, borderRadius: radius.md, padding: 14 }}>
-          <T v="label">Money in</T>
+        <View style={{ flex: 1, backgroundColor: c.tGreen, borderRadius: radius.lg, padding: 14 }}>
+          <T v="label">{`In · ${isMonth ? monthLabel(range.start.slice(0, 7)).split(' ')[0] : range.label}`}</T>
           <T v="numLg" color={c.income} style={{ fontSize: 20 }}>{compactPeso(sum.income)}</T>
         </View>
-        <View style={{ flex: 1, backgroundColor: c.surface, borderRadius: radius.md, padding: 14 }}>
-          <T v="label">Spent</T>
+        <View style={{ flex: 1, backgroundColor: c.tMagenta, borderRadius: radius.lg, padding: 14 }}>
+          <T v="label">{`Out · ${isMonth ? monthLabel(range.start.slice(0, 7)).split(' ')[0] : range.label}`}</T>
           <T v="numLg" color={c.spend} style={{ fontSize: 20 }}>{compactPeso(sum.expense)}</T>
         </View>
       </View>
+      {/* Quick type filter, like the K design; the rest stay in the filter sheet. */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12, marginHorizontal: -space.page }} contentContainerStyle={{ paddingHorizontal: space.page, gap: 6 }}>
+        {KINDS.map(([k, l]) => <Chip key={k} label={l} selected={kind === k} onPress={() => setKind(k)} />)}
+      </ScrollView>
       {activeFilters ? (
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
-          {kind !== 'all' ? <Chip label={KINDS.find(k => k[0] === kind)![1]} icon="close" selected onPress={() => setKind('all')} /> : null}
           {accountId ? <Chip label={data.accounts.find(a => a.id === accountId)?.name ?? 'Account'} icon="close" selected onPress={() => setAccountId('')} /> : null}
           {categoryId ? <Chip label={catName(categoryId) ?? 'Category'} icon="close" selected onPress={() => setCategoryId('')} /> : null}
           {tripId ? <Chip label={data.trips.find(t => t.id === tripId)?.name ?? 'Trip'} icon="close" selected onPress={() => setTripId('')} /> : null}

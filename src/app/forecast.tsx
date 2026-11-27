@@ -4,7 +4,8 @@ import Svg, { Defs, LinearGradient, Line, Path, Stop, Circle } from 'react-nativ
 import { useData } from '../data/DataContext';
 import { usePayUpcoming, isPayable } from '../data/actions';
 import { useTheme } from '../theme';
-import { Card, Chip, Empty, Field, List, Screen, Section, StatTile, T } from '../components/ui';
+import { Card, Chip, Empty, Field, Icon, List, Screen, Section, StatTile, T } from '../components/ui';
+import { router } from 'expo-router';
 import { UpcomingRow } from '../components/domain';
 import { forecast } from '../lib/ledger';
 import { compactPeso, dayLabel, peso, todayISO } from '../lib/money';
@@ -67,10 +68,10 @@ export default function Forecast() {
       </View>
 
       <Card style={{ marginTop: 16, gap: 10 }}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-          <View><T v="label">Now</T><T v="num">{peso(f.start, { cents: false })}</T></View>
-          <View style={{ alignItems: 'flex-end' }}><T v="label">{dayLabel(f.series[f.series.length - 1].date)}</T>
-            <T v="num" color={f.end < 0 ? c.spend : c.ink}>{peso(f.end, { cents: false })}</T></View>
+        <View>
+          <T v="muted">{`On ${dayLabel(f.series[f.series.length - 1].date)} you’ll have about`}</T>
+          <T v="display" color={f.end < 0 ? c.spend : c.ink} style={{ fontSize: 42, lineHeight: 48 }} numberOfLines={1}>{peso(f.end, { cents: false })}</T>
+          <T v="small">{`From ${peso(f.start, { cents: false })} now`}</T>
         </View>
         <Curve series={f.series} color={c.mango} danger={c.spend} line={c.line} faint={c.ink} />
         <T v="small" color={f.lowest.balance < 0 ? c.spend : undefined}>
@@ -80,9 +81,22 @@ export default function Forecast() {
       </Card>
 
       <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
-        <StatTile label="Expected in" value={compactPeso(f.expectedIn)} color={c.income} sub={f.actualIn ? `+${compactPeso(f.actualIn)} logged` : 'from plans'} />
-        <StatTile label="Expected out" value={compactPeso(f.expectedOut)} color={c.spend} sub={f.actualOut ? `+${compactPeso(f.actualOut)} logged` : 'from plans'} />
+        <View style={{ flex: 1, backgroundColor: c.tGreen, borderRadius: 22, padding: 14 }}>
+          <T v="label">Expected in</T><T v="numLg" color={c.income} style={{ fontSize: 20 }}>{`+${compactPeso(f.expectedIn)}`}</T>
+          <T v="small">{f.actualIn ? `+${compactPeso(f.actualIn)} logged` : 'from plans'}</T>
+        </View>
+        <View style={{ flex: 1, backgroundColor: c.tMagenta, borderRadius: 22, padding: 14 }}>
+          <T v="label">Expected out</T><T v="numLg" color={c.spend} style={{ fontSize: 20 }}>{compactPeso(f.expectedOut)}</T>
+          <T v="small">{f.actualOut ? `+${compactPeso(f.actualOut)} logged` : 'from plans'}</T>
+        </View>
       </View>
+      {f.expectedOut === 0 ? (
+        <Card style={{ marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: c.tAmber }} onPress={() => router.push('/planned')}>
+          <Icon name="alert-outline" color={c.warn} />
+          <T v="medium" style={{ flex: 1 }}>No bills are planned in this window, so this is too rosy. Add rent, power and internet.</T>
+          <Icon name="chevron-right" color={c.muted} />
+        </Card>
+      ) : null}
       <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
         <StatTile label={`Net over ${days} days`} value={`${net >= 0 ? '+' : '−'}${compactPeso(Math.abs(net))}`} color={net >= 0 ? c.income : c.spend} />
         <StatTile label="Items" value={String(f.items.length)} />
