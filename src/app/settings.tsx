@@ -88,15 +88,23 @@ export default function Settings() {
             <Icon name={folder ? 'cloud-check-outline' : 'cloud-alert-outline'} size={28} color={folder ? c.income : c.warn} />
             <View style={{ flex: 1 }}>
               <T v="semi">{folder ? decodeURIComponent(folder.split('%3A').pop() ?? 'Folder set') : 'No backup folder yet'}</T>
-              <T v="small">Last daily backup: {(data.settings.lastAutoBackup as string) ?? 'not yet'}{lastManual ? ` · last shared ${new Date(lastManual).toLocaleDateString('en-PH', { dateStyle: 'medium' })}` : ''}</T>
+              <T v="small">Inside the app: {(data.settings.lastAutoBackup as string) ?? 'not yet'}{folder ? ` · folder: ${(data.settings.lastFolderBackup as string) ?? 'not yet'}` : ''}{lastManual ? ` · sent out ${new Date(lastManual).toLocaleDateString('en-PH', { dateStyle: 'medium' })}` : ''}</T>
             </View>
           </View>
-          <T v="small">A backup is saved inside the app every day (last 14 kept). Those copies vanish if you uninstall or lose the phone, so also pick a folder your Google Drive app syncs.</T>
+          {folder && data.settings.folderBackupError ? (
+            <T v="small" color={c.spend}>{`The last copy to your folder failed (${data.settings.folderBackupError as string}). Pick the folder again.`}</T>
+          ) : null}
+          <T v="small">A backup is saved inside the app every day (last 14 kept). Those copies vanish if you uninstall or lose the phone. The Google Drive app on Android doesn’t sync phone folders, so to get a copy into Drive tap “Save to Drive”, then choose Drive and tap Save.</T>
           <Button icon="folder-outline" label={folder ? 'Change folder' : 'Pick backup folder'} onPress={() => run(async () => { if (!(await pickBackupFolder(db))) throw new Error('No folder picked.'); }, 'Backup folder set and backed up')} />
           <View style={{ flexDirection: 'row', gap: 10 }}>
             <Button small variant="secondary" icon="content-save-outline" label="Back up now" style={{ flex: 1 }}
-              onPress={() => run(async () => { setSetting(db, 'lastAutoBackup', null); await runDailyBackup(db, { ...data.settings, lastAutoBackup: null }); }, 'Backed up')} />
-            <Button small variant="secondary" icon="share-variant" label="Share backup" style={{ flex: 1 }} onPress={() => run(() => shareBackup(db))} />
+              onPress={() => run(async () => {
+                setSetting(db, 'lastAutoBackup', null);
+                const r = await runDailyBackup(db, { ...data.settings, lastAutoBackup: null });
+                // Don't say "Backed up" when the folder copy failed; the in-app copy still saved.
+                if (r.folderError) throw new Error(`Saved inside the app, but not to your folder. ${r.folderError}`);
+              }, 'Backed up')} />
+            <Button small variant="secondary" icon="google-drive" label="Save to Drive" style={{ flex: 1 }} onPress={() => run(() => shareBackup(db))} />
           </View>
         </Card>
       </Section>

@@ -54,7 +54,7 @@ export default function Saved() {
       </View>
 
       {sheetY > 0 ? (kind === 'out'
-        ? <FloatAway sheetY={sheetY} width={width} reduce={reduce} />
+        ? <FloatAway sheetY={sheetY} width={width} height={height} reduce={reduce} />
         : <DropIn sheetY={sheetY} width={width} reduce={reduce} />) : null}
 
       <View style={{ flex: 1 }} />
@@ -106,15 +106,15 @@ const deg = (v: Animated.Value) => v.interpolate({ inputRange: [-720, 720], outp
 
 /** Tumbles in backwards, lands on his back, bounces up, flips upright, lands on his feet and waves hi. */
 function DropIn({ sheetY, width, reduce }: { sheetY: number; width: number; reduce: boolean }) {
-  const w = Math.min(275, width * 0.7);
+  const w = Math.min(220, width * 0.56);
   const h = w * 1.25;
   const k = w / 275;
   const top = sheetY - h * 0.95;
-  const left = width - w + 3;
+  const left = Math.min(90, width - w - 8);
   const [pose, setPose] = useState<'fall' | 'stand'>(reduce ? 'stand' : 'fall');
   const [waving, setWaving] = useState(reduce);
   const v = useMemo(() => ({
-    ty: new Animated.Value(reduce ? 0 : -(top + h + 60)), rot: new Animated.Value(reduce ? 0 : -10),
+    ty: new Animated.Value(reduce ? 0 : -(top + h + 60)), rot: new Animated.Value(reduce ? 0 : 10),
     sx: new Animated.Value(1), sy: new Animated.Value(1), burst: new Animated.Value(0),
   }), []); // eslint-disable-line react-hooks/exhaustive-deps
   const flail = useLoop(360, pose === 'fall' && !reduce, 0, Easing.linear);
@@ -124,9 +124,9 @@ function DropIn({ sheetY, width, reduce }: { sheetY: number; width: number; redu
     if (reduce) return;
     const fall = Animated.sequence([
       Animated.delay(300),
-      Animated.parallel([t(v.ty, 79 * k, 864, Easing.in(Easing.cubic)), t(v.rot, -78, 864, Easing.in(Easing.quad))]),
-      Animated.parallel([t(v.rot, -74, 96), Animated.sequence([t(v.burst, 1, 120), t(v.burst, 0, 380)])]),
-      Animated.parallel([t(v.ty, -90 * k, 360, Easing.out(Easing.cubic)), t(v.rot, -22, 360, Easing.out(Easing.quad))]),
+      Animated.parallel([t(v.ty, 79 * k, 864, Easing.in(Easing.cubic)), t(v.rot, 78, 864, Easing.in(Easing.quad))]),
+      Animated.parallel([t(v.rot, 74, 96), Animated.sequence([t(v.burst, 1, 120), t(v.burst, 0, 380)])]),
+      Animated.parallel([t(v.ty, -90 * k, 360, Easing.out(Easing.cubic)), t(v.rot, 22, 360, Easing.out(Easing.quad))]),
     ]);
     const land = setTimeout(() => haptic('tap'), 300 + 864);
     fall.start(({ finished }) => {
@@ -146,11 +146,11 @@ function DropIn({ sheetY, width, reduce }: { sheetY: number; width: number; redu
       <Animated.View pointerEvents="none" style={{ position: 'absolute', left, top, width: w, height: h, zIndex: 2, transformOrigin: '50% 46%',
         transform: [{ translateY: v.ty }, { rotate: deg(v.rot) }, { scaleX: v.sx }, { scaleY: v.sy }] }}>
         {pose === 'fall'
-          ? <SentiFall size={w} flail={flail} />
+          ? <View style={{ transform: [{ scaleX: -1 }] }}><SentiFall size={w} flail={flail} /></View>
           : <Senti size={w} face="grin" arms="wave" label="Senti waving hello"
               left={wave.interpolate({ inputRange: [0, 1], outputRange: ['10deg', '-28deg'] })} />}
       </Animated.View>
-      <Animated.View pointerEvents="none" style={{ position: 'absolute', left: left + w * 0.24, top: sheetY - 36, zIndex: 4, opacity: v.burst,
+      <Animated.View pointerEvents="none" style={{ position: 'absolute', left: left + w * 0.76 - 70, top: sheetY - 36, zIndex: 4, opacity: v.burst,
         transform: [{ scale: v.burst.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1.2] }) }] }}>
         <Svg width={70} height={40} viewBox="0 0 70 40"><Path d="M8 30 l-6 -6 M18 22 l-4 -12 M30 20 l2 -14 M52 30 l8 -8" stroke="#fff" strokeWidth={3} fill="none" strokeLinecap="round" /></Svg>
       </Animated.View>
@@ -159,36 +159,35 @@ function DropIn({ sheetY, width, reduce }: { sheetY: number; width: number; redu
 }
 
 /** Pops up on the sheet's edge, waves bye with both arms, then drifts up and away, turning slowly. */
-function FloatAway({ sheetY, width, reduce }: { sheetY: number; width: number; reduce: boolean }) {
-  const w = Math.min(130, width * 0.33);
+function FloatAway({ sheetY, width, height, reduce }: { sheetY: number; width: number; height: number; reduce: boolean }) {
+  const w = Math.min(260, width * 0.66);
   const h = w * 1.25;
   const top = sheetY - h * 0.95;
-  const left = width - w - 24;
-  const [floating, setFloating] = useState(false);
+  const left = width - w - 8;
+  const floating = !reduce;
   const v = useMemo(() => ({
-    ty: new Animated.Value(reduce ? 0 : h), tx: new Animated.Value(0), rot: new Animated.Value(0), op: new Animated.Value(1),
+    // Starts with his head at the very bottom of the screen, hidden behind the Worth it sheet.
+    ty: new Animated.Value(reduce ? 0 : height - top), tx: new Animated.Value(0), rot: new Animated.Value(0), op: new Animated.Value(1),
   }), []); // eslint-disable-line react-hooks/exhaustive-deps
-  const wave = useLoop(800, true, reduce ? 0 : 700);
+  const wave = useLoop(800, true);
   const dangle = useLoop(2400, floating);
 
   useEffect(() => {
     if (reduce) return;
-    const seq = Animated.sequence([
+    const dur = 6500;
+    const run = Animated.sequence([
       Animated.delay(300),
-      Animated.spring(v.ty, { toValue: 0, stiffness: 260, damping: 16, mass: 1, useNativeDriver: true }),
-      Animated.delay(1300),
-    ]);
-    seq.start(({ finished }) => {
-      if (!finished) return;
-      setFloating(true);
       Animated.parallel([
-        t(v.ty, -(top + h + 80), 3600, Easing.inOut(Easing.sin)),
-        t(v.tx, -40, 3600, Easing.inOut(Easing.sin)),
-        t(v.rot, -240, 3600, Easing.inOut(Easing.sin)),
-        Animated.sequence([Animated.delay(2900), t(v.op, 0, 700)]),
-      ]).start();
-    });
-    return () => seq.stop();
+        // Rises behind the sheet, comes out waving, keeps going up and off the top.
+        t(v.ty, -(top + h + 80), dur, Easing.inOut(Easing.sin)),
+        t(v.tx, -40, dur, Easing.inOut(Easing.sin)),
+        // Barely turns while behind the sheet, then turns slowly like he's in space.
+        t(v.rot, -240, dur, Easing.in(Easing.quad)),
+        Animated.sequence([Animated.delay(dur - 900), t(v.op, 0, 900)]),
+      ]),
+    ]);
+    run.start();
+    return () => run.stop();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (

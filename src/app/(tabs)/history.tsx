@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useData, safeJson } from '../../data/DataContext';
 import { fonts, radius, space, useTheme } from '../../theme';
 import { Button, Chip, Icon, IconButton, Select, Sheet, T, DateField, type Option } from '../../components/ui';
+import { GlassIcon, NightGradient } from '../../components/k';
 import { TxRow, useCategoryName, useCategoryOptions } from '../../components/domain';
 import { addDays, addMonths, compactPeso, dayLabel, lastDayOfMonth, monthLabel, peso, todayISO } from '../../lib/money';
 import { descendantsOf, periodRange, summarize } from '../../lib/ledger';
@@ -165,27 +166,30 @@ export default function History() {
 
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
-      <View style={{ paddingTop: insets.top + 8, paddingHorizontal: space.page, paddingBottom: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <T v="title">{selecting ? `${selected.length} selected` : 'History'}</T>
-        <View style={{ flexDirection: 'row', gap: 8 }}>
-          {selecting ? <IconButton name="close" label="Cancel selection" onPress={() => setSelected([])} filled /> : <>
-            <IconButton name="magnify" label="Search" onPress={() => setSearchOpen(true)} filled />
-            <IconButton name="calendar-month-outline" label="Calendar" onPress={() => router.push('/calendar')} filled />
-            <View>
-              <IconButton name="tune-variant" label="Filters and options" onPress={() => setFiltersOpen(true)} filled />
-              {activeFilters ? <View style={{ position: 'absolute', top: 6, right: 6, width: 10, height: 10, borderRadius: 5, backgroundColor: c.mango }} /> : null}
-            </View>
-          </>}
+      <NightGradient style={{ paddingTop: insets.top + 12, paddingHorizontal: space.page, paddingBottom: 40 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 40 }}>
+          <T v="title" color="#FFFFFF">{selecting ? `${selected.length} selected` : 'History'}</T>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            {selecting ? <GlassIcon name="close" label="Cancel selection" onPress={() => setSelected([])} /> : <>
+              <GlassIcon name="magnify" label="Search" onPress={() => setSearchOpen(true)} />
+              <GlassIcon name="calendar-month-outline" label="Calendar" onPress={() => router.push('/calendar')} />
+              <View>
+                <GlassIcon name="tune-variant" label="Filters and options" onPress={() => setFiltersOpen(true)} />
+                {activeFilters ? <View style={{ position: 'absolute', top: 4, right: 4, width: 10, height: 10, borderRadius: 5, backgroundColor: c.amber }} /> : null}
+              </View>
+            </>}
+          </View>
         </View>
-      </View>
+      </NightGradient>
 
       <SectionList
+        style={{ flex: 1, marginTop: -28, backgroundColor: c.bg, borderTopLeftRadius: 28, borderTopRightRadius: 28 }}
         sections={sections}
         keyExtractor={t => t.id}
         ListHeaderComponent={header}
         stickySectionHeadersEnabled={false}
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ paddingBottom: 140 + insets.bottom }}
+        contentContainerStyle={{ paddingTop: 8, paddingBottom: 140 + insets.bottom }}
         renderSectionHeader={({ section }) => (
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 20, marginBottom: 8, marginHorizontal: space.page + 4 }}>
             <T v="semi" color={c.muted}>{dayLabel(section.title)}{query || range.key === 'all' || range.key === 'ytd' ? `, ${section.title.slice(0, 4)}` : ''}</T>

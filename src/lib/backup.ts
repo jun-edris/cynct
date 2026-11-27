@@ -40,8 +40,14 @@ export async function runDailyBackup(db: DB, settings: Record<string, unknown>):
   let folderError: string | undefined;
   const folder = settings.backupFolderUri as string | undefined;
   if (folder) {
-    try { await writeToFolder(folder, `cynct-${today}`, json); }
-    catch { folderError = 'Couldn’t write to your backup folder. Pick it again in Settings.'; }
+    try {
+      await writeToFolder(folder, `cynct-${today}`, json);
+      setSetting(db, 'lastFolderBackup', today);
+      setSetting(db, 'folderBackupError', null);
+    } catch {
+      folderError = 'Couldn’t write to your backup folder. Pick it again in Settings.';
+      setSetting(db, 'folderBackupError', today);
+    }
   }
   setSetting(db, 'lastAutoBackup', today);
   return { wrote: true, folderError };
@@ -59,8 +65,11 @@ async function writeToFolder(folderUri: string, baseName: string, json: string) 
 export async function pickBackupFolder(db: DB): Promise<boolean> {
   const res = await Legacy.StorageAccessFramework.requestDirectoryPermissionsAsync();
   if (!res.granted) return false;
-  await writeToFolder(res.directoryUri, `cynct-${todayISO()}`, backupJson(db));
+  try { await writeToFolder(res.directoryUri, `cynct-${todayISO()}`, backupJson(db)); }
+  catch { throw new Error('That folder doesn’t let apps save files. Pick a folder on your phone instead.'); }
   setSetting(db, 'backupFolderUri', res.directoryUri);
+  setSetting(db, 'lastFolderBackup', todayISO());
+  setSetting(db, 'folderBackupError', null);
   return true;
 }
 

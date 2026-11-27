@@ -4,7 +4,10 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing, Pressable, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import Svg, { Circle, Defs, Ellipse, G, LinearGradient, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
+import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fonts, useTheme } from '../theme';
+import { Icon } from './ui';
 import { haptic } from './motion';
 
 // ---------- reduce motion ----------
@@ -244,4 +247,45 @@ export function useLoop(period: number, run: boolean, delay = 0, easing: (t: num
     return () => { clearTimeout(t); loop.stop(); };
   }, [run, period, delay, easing, v]);
   return v;
+}
+
+// ---------- screen header ----------
+/** Round glass icon button for use on the night gradient. */
+export function GlassIcon({ name, label, onPress }: { name: string; label: string; onPress: () => void }) {
+  return (
+    <Pressable onPress={() => { haptic(); onPress(); }} accessibilityRole="button" accessibilityLabel={label} hitSlop={4}
+      style={({ pressed }) => ({ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.13)',
+        borderWidth: 1, borderColor: 'rgba(255,255,255,0.26)', transform: [{ scale: pressed ? 0.92 : 1 }] })}>
+      <Icon name={name} size={20} color="#FFFFFF" />
+    </Pressable>
+  );
+}
+
+/**
+ * The K screen top: a night gradient running under the status bar with a title, glass buttons on the right
+ * and the screen's big number below. Use inside <Screen headerless edge>, followed by <KSheet>.
+ */
+export function KHeader({ title, right, back, children }: { title: string; right?: React.ReactNode; back?: boolean; children?: React.ReactNode }) {
+  const insets = useSafeAreaInsets();
+  return (
+    <NightGradient style={{ marginHorizontal: -18, paddingTop: insets.top + 12, paddingHorizontal: 18, paddingBottom: 46 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 40 }}>
+        {back ? <GlassIcon name="arrow-left" label="Back" onPress={() => router.back()} /> : null}
+        <Text style={{ flex: 1, fontFamily: fonts.numBlack, fontSize: 28, letterSpacing: -0.85, color: '#FFFFFF' }} accessibilityRole="header" numberOfLines={1}>{title}</Text>
+        {right}
+      </View>
+      {children}
+    </NightGradient>
+  );
+}
+
+/** The cream sheet under a KHeader, full-bleed to the screen edges. */
+export function KSheet({ children }: { children: React.ReactNode }) {
+  const { c } = useTheme();
+  return <View style={{ backgroundColor: c.bg, borderTopLeftRadius: 28, borderTopRightRadius: 28, marginTop: -28, marginHorizontal: -18, paddingHorizontal: 18, paddingTop: 16 }}>{children}</View>;
+}
+
+/** White label text for the gradient. */
+export function OnNight({ children, v = 'sm', style }: { children: React.ReactNode; v?: 'sm' | 'xs'; style?: StyleProp<import('react-native').TextStyle> }) {
+  return <Text style={[{ fontFamily: fonts.medium, fontSize: v === 'sm' ? 14 : 12, color: '#E7E0FF' }, style]}>{children}</Text>;
 }

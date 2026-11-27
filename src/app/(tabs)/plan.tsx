@@ -1,10 +1,11 @@
 import React from 'react';
 import { View } from 'react-native';
 import { router, type Href } from 'expo-router';
+import { KHeader, KSheet, OnNight, OnNightPill } from '../../components/k';
 import { useData, safeJson } from '../../data/DataContext';
 import { radius, useTheme } from '../../theme';
 import { Card, Grid, Icon, IconBubble, Screen, Section, T } from '../../components/ui';
-import { compactPeso, dayLabel, todayISO } from '../../lib/money';
+import { compactPeso, dayLabel, peso, todayISO } from '../../lib/money';
 import { budgetStatus, debtStatus, goalProgress, upcoming } from '../../lib/ledger';
 import { Squish } from '../../components/motion';
 
@@ -40,8 +41,19 @@ export default function Plan() {
   const activeInst = data.installments.filter(i => i.paidCount < i.months).length;
 
   return (
-    <Screen title="Plan" subtitle="Budgets, goals, debts and what’s coming." padBottom={130}>
-      <View style={{ gap: 10, marginTop: 6 }}>
+    <Screen headerless edge padBottom={130}>
+      <KHeader title="Plan">
+        <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 12, marginTop: 12 }}>
+          <View style={{ flex: 1 }}>
+            <OnNight>{next ? `Next · ${next.name}` : 'Nothing planned'}</OnNight>
+            <T v="display" color="#FFFFFF" style={{ fontSize: 40, lineHeight: 48 }} numberOfLines={1}>{next ? peso(Math.abs(next.amount), { cents: false }) : '—'}</T>
+            <OnNight v="xs">{next ? dayLabel(next.date) : 'Add bills and paydays in Planned payments'}</OnNight>
+          </View>
+          <OnNightPill label="Plan pay" onPress={() => router.push('/paycheck')} />
+        </View>
+      </KHeader>
+      <KSheet>
+      <View style={{ gap: 10, marginTop: 2 }}>
         <Tile wide icon="chart-donut" color={c.mango} title="Budgets"
           sub={budgetCount ? `${budgetCount} active${over ? ` · ${over} over limit` : ' · all within limits'}` : 'Daily to yearly limits, and income targets'} href="/budgets" />
         <Tile wide icon="flag-variant" color={c.income} title="Goals" sub={goals.length ? `${goals.length} in progress · ${compactPeso(saved)} saved` : 'Save toward something that matters'} href="/goals" />
@@ -95,6 +107,7 @@ export default function Plan() {
           <Tile icon="account-multiple-outline" color="#2EC4B6" title="Split the bill" sub="Even shares with service charge" href="/tools/split" wide />
         </View>
       </Section>
+      </KSheet>
     </Screen>
   );
 }

@@ -117,6 +117,9 @@ function Reminders() {
   return null;
 }
 
+// Screens whose top is the night gradient get light status bar icons.
+const NIGHT_TOP = new Set(['/', '/saved', '/wallet', '/history', '/plan']);
+
 function Shell() {
   const { c, dark } = useTheme();
   const pathname = usePathname();
@@ -141,8 +144,7 @@ function Shell() {
 
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
-      {/* Light icons over the night gradient on Home and the after-save screen. */}
-      <StatusBar style={dark || pathname === '/' || pathname === '/saved' ? 'light' : 'dark'} />
+            <StatusBar style={dark || NIGHT_TOP.has(pathname) ? 'light' : 'dark'} />
       <AutoRates />
       <Reminders />
       <CaptureSync />

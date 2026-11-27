@@ -3,9 +3,10 @@ import { Pressable, View } from 'react-native';
 import { router } from 'expo-router';
 import { useData } from '../../data/DataContext';
 import { radius, useTheme } from '../../theme';
-import { Bar, Button, Card, Empty, Grid, Icon, IconBubble, IconButton, List, Note, Row, Screen, Section, Segmented, T } from '../../components/ui';
+import { Bar, Button, Card, Empty, Grid, Icon, IconBubble, List, Note, Row, Screen, Section, Segmented, T } from '../../components/ui';
 import { BASE, money } from '../../lib/currency';
-import { EyeButton } from '../../components/domain';
+import { GlassIcon, KHeader, KSheet, OnNight } from '../../components/k';
+import { setSetting } from '../../db/repo';
 import { compactPeso, peso } from '../../lib/money';
 import { isLiability, netWorth } from '../../lib/ledger';
 import { ACCOUNT_TYPES } from '../../lib/seed';
@@ -39,7 +40,8 @@ function AccountCard({ a, balance, base }: { a: Account; balance: number; base: 
 
 export default function Wallet() {
   const { c } = useTheme();
-  const { data, balances, baseBalances, goalFunds, missing } = useData();
+  const { data, act, balances, baseBalances, goalFunds, missing } = useData();
+  const hidden = data.settings.hideAmounts === true;
   const [view, setView] = useState<'cards' | 'list'>('cards');
   const nw = netWorth(data.accounts, baseBalances, goalFunds);
   const active = data.accounts.filter(a => !a.archived);
@@ -48,21 +50,24 @@ export default function Wallet() {
   const liabilities = active.filter(a => isLiability(a.type));
 
   return (
-    <Screen title="Wallet" right={<>
-      <EyeButton />
-      <IconButton name="qrcode" label="My payment methods" onPress={() => router.push('/payment-methods')} filled />
-      <IconButton name="plus" label="Add account" onPress={() => router.push('/account/new')} filled />
-    </>} padBottom={130}>
-      <Card style={{ flexDirection: 'row', gap: 0, padding: 0 }}>
-        {[['Net worth', nw.net, c.ink], ['You have', nw.assets, c.income], ['You owe', -nw.liabilities, nw.liabilities ? c.spend : c.ink]].map(([l, v, col], i) => (
-          <View key={String(l)} style={{ flex: 1, padding: 14, borderLeftWidth: i ? 1 : 0, borderColor: c.line }}>
-            <T v="label">{String(l)}</T>
-            <T v="num" color={String(col)} style={{ fontSize: 18, marginTop: 4 }} numberOfLines={1}>{compactPeso(Number(v))}</T>
+    <Screen headerless edge padBottom={130}>
+      <KHeader title="Wallet" right={<>
+        <GlassIcon name={hidden ? 'eye-off-outline' : 'eye-outline'} label={hidden ? 'Show amounts' : 'Hide amounts'} onPress={() => act(db => setSetting(db, 'hideAmounts', !hidden))} />
+        <GlassIcon name="qrcode" label="My payment methods" onPress={() => router.push('/payment-methods')} />
+        <GlassIcon name="plus" label="Add account" onPress={() => router.push('/account/new')} />
+      </>}>
+        <View style={{ marginTop: 12 }}>
+          <OnNight>Net worth</OnNight>
+          <T v="display" color="#FFFFFF" style={{ fontSize: 46, lineHeight: 54 }} numberOfLines={1}>{peso(nw.net, { cents: false })}</T>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: 14, marginTop: 4 }}>
+            <OnNight v="xs">{`You have ${compactPeso(nw.assets)}`}</OnNight>
+            <OnNight v="xs">{`You owe ${compactPeso(nw.liabilities)}`}</OnNight>
+            {goalFunds > 0 ? <OnNight v="xs">{`In goals ${compactPeso(goalFunds)}`}</OnNight> : null}
           </View>
-        ))}
-      </Card>
+        </View>
+      </KHeader>
+      <KSheet>
       {missing.length ? <View style={{ marginTop: 10 }}><Note tone="warn" icon="currency-usd-off">{`Set a rate for ${missing.join(', ')} in Currencies. Until then those accounts count as ₱0 in totals.`}</Note></View> : null}
-      {goalFunds > 0 ? <T v="small" style={{ marginTop: 8 }}>Includes {peso(goalFunds, { cents: false })} set aside inside goals.</T> : null}
 
       <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
         <Card style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 }} onPress={() => router.push('/overview')}>
@@ -117,6 +122,7 @@ export default function Wallet() {
         </Section>
       ) : null}
       {active.length ? <Button variant="secondary" icon="plus" label="Add account" style={{ marginTop: 18 }} onPress={() => router.push('/account/new')} /> : null}
+      </KSheet>
     </Screen>
   );
 }
