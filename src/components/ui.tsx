@@ -33,9 +33,9 @@ export function T({ v = 'body', style, color, children, numberOfLines, center }:
 }) {
   const { c } = useTheme();
   const base: Record<TV, TextStyle> = {
-    display: { fontFamily: fonts.numBlack, fontSize: 40, lineHeight: 46, color: c.ink, letterSpacing: -0.8, fontVariant: ['tabular-nums'] },
-    title: { fontFamily: fonts.numBlack, fontSize: 28, lineHeight: 33, color: c.ink, letterSpacing: -0.4 },
-    h2: { fontFamily: fonts.num, fontSize: 19, lineHeight: 24, color: c.ink },
+    display: { fontFamily: fonts.numBlack, fontSize: 40, lineHeight: 46, color: c.ink, letterSpacing: -1.4, fontVariant: ['tabular-nums'] },
+    title: { fontFamily: fonts.numBlack, fontSize: 28, lineHeight: 33, color: c.ink, letterSpacing: -0.85 },
+    h2: { fontFamily: fonts.num, fontSize: 20, lineHeight: 25, color: c.ink, letterSpacing: -0.4 },
     h3: { fontFamily: fonts.semi, fontSize: 16, lineHeight: 21, color: c.ink },
     body: { fontFamily: fonts.body, fontSize: 16, lineHeight: 23, color: c.ink },
     medium: { fontFamily: fonts.medium, fontSize: 15, lineHeight: 21, color: c.ink },
@@ -43,8 +43,8 @@ export function T({ v = 'body', style, color, children, numberOfLines, center }:
     small: { fontFamily: fonts.body, fontSize: 13.5, lineHeight: 19, color: c.muted },
     muted: { fontFamily: fonts.body, fontSize: 15, lineHeight: 22, color: c.muted },
     label: { fontFamily: fonts.medium, fontSize: 13, lineHeight: 17, color: c.muted },
-    num: { fontFamily: fonts.num, fontSize: 16, color: c.ink, fontVariant: ['tabular-nums'] },
-    numLg: { fontFamily: fonts.numBlack, fontSize: 24, color: c.ink, fontVariant: ['tabular-nums'], letterSpacing: -0.3 },
+    num: { fontFamily: fonts.num, fontSize: 16, color: c.ink, fontVariant: ['tabular-nums'], letterSpacing: -0.3 },
+    numLg: { fontFamily: fonts.numBlack, fontSize: 24, color: c.ink, fontVariant: ['tabular-nums'], letterSpacing: -0.8 },
   };
   return <Text numberOfLines={numberOfLines} style={[base[v], center && { textAlign: 'center' }, color ? { color } : null, style]}>{children}</Text>;
 }
@@ -54,8 +54,10 @@ export function Money({ value, sign, v = 'num', color, style, cents }: { value: 
 }
 
 // ---------- layout ----------
-export function Screen({ title, subtitle, back, right, children, scroll = true, padBottom = 120, headerless }: {
+export function Screen({ title, subtitle, back, right, children, scroll = true, padBottom = 120, headerless, edge }: {
   title?: string; subtitle?: string; back?: boolean; right?: React.ReactNode; children: React.ReactNode; scroll?: boolean; padBottom?: number; headerless?: boolean;
+  /** Content starts at the very top edge (for gradient headers that run under the status bar). */
+  edge?: boolean;
 }) {
   const { c } = useTheme();
   const insets = useSafeAreaInsets();
@@ -70,7 +72,7 @@ export function Screen({ title, subtitle, back, right, children, scroll = true, 
     </View>
   );
   const body = scroll
-    ? <ScrollView contentContainerStyle={{ paddingHorizontal: space.page, paddingBottom: padBottom + insets.bottom, paddingTop: 6 }} keyboardShouldPersistTaps="handled">{children}</ScrollView>
+    ? <ScrollView contentContainerStyle={{ paddingHorizontal: space.page, paddingBottom: padBottom + insets.bottom, paddingTop: edge ? 0 : 6 }} keyboardShouldPersistTaps="handled">{children}</ScrollView>
     : <View style={{ flex: 1 }}>{children}</View>;
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: c.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -178,7 +180,7 @@ export function Row({ icon, iconColor, left, title, sub, right, onPress, onLongP
       accessibilityState={selected !== undefined ? { selected } : undefined}
       style={({ pressed }) => [{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 14, paddingVertical: 12, minHeight: 64 },
         (pressed || selected) && { backgroundColor: selected ? c.mangoSoft : c.sunk }]}>
-      {selected ? <IconBubble icon="check" color={c.mango} solid /> : left ?? (icon ? <IconBubble icon={icon} color={iconColor ?? c.muted} /> : null)}
+      {selected ? <IconBubble icon="check" color={c.mango} solid iconColor={c.onMango} /> : left ?? (icon ? <IconBubble icon={icon} color={iconColor ?? c.muted} /> : null)}
       <View style={{ flex: 1, minWidth: 0 }}>
         <T v="semi" numberOfLines={1}>{title}</T>
         {sub ? (typeof sub === 'string' ? <T v="small" numberOfLines={1}>{sub}</T> : sub) : null}
@@ -231,9 +233,11 @@ export function Chip({ label, tone = 'plain', icon, selected, onPress, color }: 
 }) {
   const { c } = useTheme();
   const map = { plain: [c.sunk, c.muted], bad: [c.spendSoft, c.spend], warn: [c.warnSoft, c.warn], good: [c.incomeSoft, c.income], info: [c.infoSoft, c.info] };
-  const [bg, fg] = selected ? [c.ink, c.bg] : map[tone];
+  const [bg, fg] = selected ? [c.ink, c.bg] : tone === 'plain' && onPress ? ['transparent', c.ink] : map[tone];
+  const outlined = !selected && tone === 'plain' && !!onPress;
   const body = (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: bg, borderRadius: radius.pill, paddingHorizontal: onPress ? 14 : 9, paddingVertical: onPress ? 9 : 3 }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: bg, borderRadius: radius.pill, paddingHorizontal: onPress ? 14 : 9, paddingVertical: onPress ? 8 : 3,
+      borderWidth: outlined ? 1.5 : 0, borderColor: c.line }}>
       {icon ? <Icon name={icon} size={onPress ? 17 : 14} color={color && !selected ? color : fg} /> : null}
       <Text style={{ color: fg, fontFamily: onPress ? fonts.semi : fonts.medium, fontSize: onPress ? 14.5 : 12.5 }}>{label}</Text>
     </View>
@@ -244,11 +248,11 @@ export function Chip({ label, tone = 'plain', icon, selected, onPress, color }: 
 
 // ---------- controls ----------
 export function Button({ label, onPress, variant = 'primary', small, icon, disabled, style }: {
-  label: string; onPress?: () => void; variant?: 'primary' | 'secondary' | 'dark' | 'danger' | 'ghost'; small?: boolean; icon?: string; disabled?: boolean; style?: StyleProp<ViewStyle>;
+  label: string; onPress?: () => void; variant?: 'primary' | 'accent' | 'secondary' | 'dark' | 'danger' | 'ghost'; small?: boolean; icon?: string; disabled?: boolean; style?: StyleProp<ViewStyle>;
 }) {
   const { c } = useTheme();
   const look = {
-    primary: [c.mango, c.onMango, c.mango], secondary: [c.surface, c.ink, c.line], dark: [c.ink, c.bg, c.ink],
+    primary: [c.ink, c.bg, c.ink], accent: [c.mango, c.onMango, c.mango], secondary: [c.surface, c.ink, c.line], dark: [c.ink, c.bg, c.ink],
     danger: [c.spendSoft, c.spend, c.spendSoft], ghost: ['transparent', c.ink, 'transparent'],
   }[variant];
   const h = small ? 44 : 56;
@@ -373,8 +377,9 @@ function NumberField({ label, hint, error, style, big, decimals = 2, prefix, val
  * rounds fully and springs into place; the others keep tighter inner corners.
  */
 export function Segmented<V extends string>({ value, options, onChange }: { value: V; options: [V, string, string?][]; onChange: (v: V) => void }) {
+  const { c } = useTheme();
   return (
-    <View style={{ flexDirection: 'row', gap: 3 }} accessibilityRole="radiogroup">
+    <View style={{ flexDirection: 'row', gap: 4, padding: 4, borderRadius: 16, backgroundColor: c.sunk }} accessibilityRole="radiogroup">
       {options.map(([v, label, icon], i) => (
         <SegItem key={v} on={v === value} label={label} icon={icon} first={i === 0} last={i === options.length - 1} onPress={() => { if (v !== value) { haptic('select'); onChange(v); } }} />
       ))}
@@ -385,15 +390,14 @@ export function Segmented<V extends string>({ value, options, onChange }: { valu
 function SegItem({ on, label, icon, first, last, onPress }: { on: boolean; label: string; icon?: string; first: boolean; last: boolean; onPress: () => void }) {
   const { c } = useTheme();
   const k = useSpring(on ? 1 : 0, SPRING.fastSpatial);
-  const inner = k.interpolate({ inputRange: [0, 1], outputRange: [8, 22] });
-  const outerR = 22;
+  void first; void last;
   return (
     <Pressable onPress={onPress} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel={label} style={{ flex: 1 }}>
-      <Animated.View style={{ flexDirection: 'row', gap: 6, minHeight: 44, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? c.ink : c.sunk,
-        borderTopLeftRadius: first ? outerR : inner, borderBottomLeftRadius: first ? outerR : inner, borderTopRightRadius: last ? outerR : inner, borderBottomRightRadius: last ? outerR : inner,
+      <Animated.View style={{ flexDirection: 'row', gap: 6, minHeight: 40, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center', borderRadius: 12,
+        backgroundColor: on ? c.surface : 'transparent', opacity: k.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] }),
         transform: [{ scale: k.interpolate({ inputRange: [0, 1], outputRange: [1, 1.02] }) }] }}>
-        {on ? <Icon name={icon ?? 'check'} size={17} color={c.bg} /> : icon ? <Icon name={icon} size={17} color={c.muted} /> : null}
-        <Text numberOfLines={1} style={{ fontFamily: fonts.semi, fontSize: 14.5, color: on ? c.bg : c.muted }}>{label}</Text>
+        {icon ? <Icon name={icon} size={17} color={on ? c.ink : c.muted} /> : null}
+        <Text numberOfLines={1} style={{ fontFamily: on ? fonts.semi : fonts.medium, fontSize: 14, color: on ? c.ink : c.muted }}>{label}</Text>
       </Animated.View>
     </Pressable>
   );
@@ -582,7 +586,7 @@ export function Keypad({ expr, onChange, onDone, mode = 'calc', maxDecimals = 2,
             const eq = k === '=';
             const danger = k === 'AC' || k === '⌫';
             const sign = k === '±';
-            const bg = eq ? c.mango : op || (sign && negative) ? c.navy : danger || sign ? c.sunk : c.surface;
+            const bg = eq ? c.mango : op || (sign && negative) ? c.mangoSoft : danger || sign ? c.sunk : c.surface;
             const fg = eq ? c.onMango : op || (sign && negative) ? c.mango : danger ? c.spend : c.ink;
             return (
               <Squish key={k} accessibilityRole="button"

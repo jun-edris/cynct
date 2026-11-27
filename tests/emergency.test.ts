@@ -12,13 +12,14 @@ describe('emergency fund', () => {
       ],
       [{ monthlyAmount: 200_000, months: 12, paidCount: 3 }, { monthlyAmount: 50_000, months: 6, paidCount: 6 }],
       [
-        { type: 'expense', amount: 900_000, date: '2026-11-20' }, // 9,000 over 90 days → 100/day
+        { type: 'expense', amount: 900_000, date: '2026-11-20' }, // 5 days of history → spread over the 14-day floor, not 90
         { type: 'expense', amount: 500_000, date: '2026-11-20', recurringId: 'r1' }, // already a bill
         { type: 'income', amount: 100_000, date: '2026-11-20' },
       ],
       '2026-11-24',
     );
-    expect(e).toEqual({ bills: 160_000, installments: 200_000, dayToDay: 304_400, total: 664_400 });
+    const dayToDay = Math.round(Math.round(900_000 / 14) * 30.44);
+    expect(e).toEqual({ bills: 160_000, installments: 200_000, dayToDay, total: 360_000 + dayToDay });
   });
 
   it('works out target, gap and months covered', () => {

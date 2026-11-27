@@ -1,5 +1,5 @@
 // Pure calculations. No React, no database — tested in tests/ledger.test.ts.
-import { addDays, addMonths, daysBetween, futureValue, lastDayOfMonth, monthsBetween, parseISO, requiredMonthly, todayISO } from './money';
+import { addDays, addMonths, daysBetween, futureValue, lastDayOfMonth, monthsUntil, parseISO, requiredMonthly, todayISO } from './money';
 
 export interface TxLite {
   id: string; type: string; amount: number; fee?: number; toAmount?: number | null; accountId: string | null; toAccountId: string | null;
@@ -56,14 +56,23 @@ export function goalFund(goal: { id: string; startingSaved: number }, txs: TxLit
   return v;
 }
 
+/** "3 months left", "1 month left", "under a month left". */
+export function leftLabel(months: number): string {
+  const m = Math.floor(months);
+  return m >= 2 ? `${m} months left` : m === 1 ? '1 month left' : months > 0 ? 'under a month left' : 'deadline passed';
+}
+
 export function goalProgress(g: GoalLite, bal: Map<string, number>, txs: TxLite[], today = todayISO()) {
   const fund = goalFund(g, txs);
   const linked = g.accountIds.reduce((s, id) => s + Math.max(0, bal.get(id) ?? 0), 0);
   const saved = fund + linked;
-  const monthsLeft = Math.max(0, monthsBetween(today, g.deadline));
+  // Fractional months, so 30 Nov → 1 Jan is about 1 month, not 2, and a deadline later this month isn't "0 months".
+  const months = monthsUntil(today, g.deadline);
+  const monthsLeft = Math.floor(months);
   const pct = g.target > 0 ? Math.min(1, Math.max(0, saved / g.target)) : 0;
-  const needed = requiredMonthly(g.target, saved, monthsLeft, g.annualRate);
-  const projected = Math.round(saved * Math.pow(1 + g.annualRate / 12, monthsLeft) + futureValue(g.monthly, monthsLeft, g.annualRate));
+  // Under a month to go: the whole gap is due before the deadline, not a monthly rate above it.
+  const needed = months < 1 ? Math.max(0, g.target - saved) : requiredMonthly(g.target, saved, months, g.annualRate);
+  const projected = Math.round(saved * Math.pow(1 + g.annualRate / 12, months) + futureValue(g.monthly, monthsLeft, g.annualRate));
   let movedIn = 0, movedOut = 0, interest = 0;
   for (const t of txs) {
     if (t.deletedAt || t.goalId !== g.id) continue;
@@ -71,7 +80,7 @@ export function goalProgress(g: GoalLite, bal: Map<string, number>, txs: TxLite[
     if (t.type === 'goal_out') movedOut += t.amount;
     if (t.type === 'goal_interest') interest += t.amount;
   }
-  return { fund, linked, saved, pct, monthsLeft, needed, projected, onTrack: needed <= g.monthly, movedIn, movedOut, interest, left: Math.max(0, g.target - saved) };
+  return { fund, linked, saved, pct, monthsLeft, months, needed, projected, onTrack: needed <= g.monthly, movedIn, movedOut, interest, left: Math.max(0, g.target - saved) };
 }
 
 /**

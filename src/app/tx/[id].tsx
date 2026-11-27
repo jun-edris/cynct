@@ -5,12 +5,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useData, safeJson } from '../../data/DataContext';
 import { radius, space, useTheme } from '../../theme';
 import {
-  Button, Chip, Row, Sheet, DateField, ErrorText, Field, FormRow, IconButton, Keypad, Note, Segmented, Select, T, TimeField, Toggle, close, keypadValue,
+  Button, Chip, Row, Sheet, DateField, ErrorText, Field, FormRow, Icon, Keypad, Note, Select, T, TimeField, Toggle, close, keypadValue,
 } from '../../components/ui';
 import { CategoryGrid, PhotoField, TagField, useAccountOptions } from '../../components/domain';
+import { GradButton, NightGradient } from '../../components/k';
 import { advanceDue, anchorFor } from '../../lib/ledger';
 import { hasOperator } from '../../lib/calc';
-import { inputValue, nowMs, toCentavos, toSignedCentavos, todayISO, uid } from '../../lib/money';
+import { dayLabel, inputValue, nowMs, toCentavos, toSignedCentavos, todayISO, uid } from '../../lib/money';
 import { CURRENCIES, convert, currencyInfo, money, symbolOf } from '../../lib/currency';
 import { newTx, restore, setCaptured, setSetting, softDelete, upsert } from '../../db/repo';
 import type { Transaction } from '../../db/schema';
@@ -20,6 +21,16 @@ const FREQS = [{ value: 'monthly', label: 'Every month' }, { value: 'semimonthly
   { value: 'quarterly', label: 'Every 3 months' }, { value: 'yearly', label: 'Every year' }];
 
 function nowTime() { const d = new Date(); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; }
+
+function GlassIcon({ name, label, onPress }: { name: string; label: string; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} hitSlop={4}
+      style={({ pressed }) => ({ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.13)',
+        borderWidth: 1, borderColor: 'rgba(255,255,255,0.26)', transform: [{ scale: pressed ? 0.92 : 1 }] })}>
+      <Icon name={name} size={20} color="#FFFFFF" />
+    </Pressable>
+  );
+}
 
 export default function Entry() {
   // Prefill (from a receipt scan or a template): amount in pesos as text, note, date, photo, category, account.
@@ -56,7 +67,6 @@ export default function Entry() {
   const [exactEdited, setExactEdited] = useState(!!existing?.origCurrency);
 
   const value = useMemo(() => keypadValue(expr), [expr]);
-  const accent = kind === 'income' ? c.income : c.spend;
   const cur = curOf(special ? existing!.accountId : accountId);
   const m = (v: number) => money(v, cur);
   const entryCur = special ? cur : pickedCur ?? cur;
@@ -100,7 +110,19 @@ export default function Entry() {
     }, isNew ? `${kind === 'income' ? 'Income' : 'Expense'} of ${m(amt)} saved${repeat ? ', repeats' : ''}` : 'Saved changes',
     // A new salary: offer to split it right away.
     isNew && kind === 'income' && isSalary(row.categoryId) ? { label: 'Plan it', run: () => router.push({ pathname: '/paycheck', params: { amount: String((convert(amt, cur, 'PHP', rates) ?? amt) / 100), date } }) } : undefined);
-    if (ok) close();
+    if (!ok) return;
+    if (!isNew) { close(); return; }
+    // Senti reacts on the after-save screen; spends at or over the threshold (₱300 by default) get "Worth it?".
+    const inPeso = convert(amt, cur, 'PHP', rates) ?? amt;
+    const minAsk = Math.round(Number(data.settings.worthMin ?? 300) * 100);
+    const catName = data.categories.find(x => x.id === row.categoryId)?.name;
+    const when = date === todayISO() ? 'today' : dayLabel(date);
+    router.replace({ pathname: '/saved', params: {
+      kind: kind === 'income' ? 'in' : 'out', tx: row.id, ask: kind === 'income' || inPeso >= minAsk ? '1' : '0',
+      amount: kind === 'income' ? `+${m(amt)}` : `Spent ${m(amt)}`,
+      title: kind === 'income' ? [catName ?? 'Income', accName].join(' · ') : undefined,
+      sub: kind === 'income' ? (isSalary(row.categoryId) ? 'Payday' : when) : [catName ?? 'Uncategorized', accName, when].join(' · '),
+    } });
   };
 
   const saveTemplate = () => {
@@ -119,37 +141,56 @@ export default function Entry() {
   const title = isNew ? null : special ? ({ adjust: 'Balance correction', goal_in: 'Goal contribution', goal_out: 'Goal withdrawal', goal_interest: 'Goal interest',
     debt_in: 'Debt movement', debt_out: 'Debt movement' } as Record<string, string>)[existing!.type] ?? 'Transaction' : null;
 
+  const catLabel = data.categories.find(x => x.id === categoryId)?.name;
+  const saveLabel = value > 0 ? `Save ${m(Math.round(value * 100))}${catLabel ? ` ${kind === 'income' ? 'from' : 'on'} ${catLabel}` : ''}` : `Save ${kind}`;
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
-      <View style={{ paddingTop: insets.top + 8, paddingHorizontal: space.page, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-        <IconButton name="close" label="Close" onPress={close} filled />
-        <View style={{ flex: 1 }}>
-          {special ? <T v="h2" center>{title}</T>
-            : <Segmented value={kind} onChange={(v) => { setKind(v); setCategoryId(''); }} options={[['expense', 'Expense', 'arrow-up'], ['income', 'Income', 'arrow-down']]} />}
+      {/* K: the amount sits on a night-gradient card. */}
+      <NightGradient radius={26} style={{ marginTop: insets.top + 8, marginHorizontal: 12, padding: 14, paddingBottom: 16 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <GlassIcon name="close" label="Close" onPress={close} />
+          <View style={{ flex: 1, alignItems: 'center' }}>
+            {special ? <T v="h2" center color="#FFFFFF">{title}</T> : (
+              <View style={{ flexDirection: 'row', padding: 3, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.12)' }} accessibilityRole="radiogroup">
+                {([['expense', 'Expense'], ['income', 'Income']] as const).map(([k, l]) => (
+                  <Pressable key={k} onPress={() => { if (kind !== k) { setKind(k); setCategoryId(''); } }} accessibilityRole="radio" accessibilityState={{ selected: kind === k }}
+                    style={{ height: 34, paddingHorizontal: 16, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: kind === k ? '#FFFFFF' : 'transparent' }}>
+                    <T v="semi" color={kind === k ? '#17122D' : '#FFFFFF'} style={{ fontSize: 14 }}>{l}</T>
+                  </Pressable>
+                ))}
+              </View>
+            )}
+          </View>
+          {!isNew ? <GlassIcon name="trash-can-outline" label="Delete" onPress={del} /> : <View style={{ width: 40 }} />}
         </View>
-        {!isNew ? <IconButton name="trash-can-outline" label="Delete" onPress={del} filled color={c.spend} /> : <View style={{ width: 44 }} />}
-      </View>
+        {special && existing!.type === 'adjust' ? null : (
+          <Pressable onPress={() => setKeypadOpen(true)} accessibilityRole="button" accessibilityLabel={`Amount ${m(Math.round(value * 100))}. Tap to edit`}
+            style={{ alignItems: 'center', paddingTop: 18, paddingBottom: 4 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 4 }}>
+              <T v="numLg" color={expr ? '#E7E0FF' : 'rgba(255,255,255,0.5)'} style={{ fontSize: 26, marginTop: 10 }}>{symbolOf(entryCur).trim()}</T>
+              <T v="display" color={expr ? '#FFFFFF' : 'rgba(255,255,255,0.5)'} style={{ fontSize: 58, lineHeight: 66 }} numberOfLines={1}>
+                {expr ? (hasOperator(expr) ? expr : Number(value).toLocaleString('en-PH', { maximumFractionDigits: 2 })) : '0'}
+              </T>
+            </View>
+            {hasOperator(expr) ? <T v="medium" color="#E7E0FF">= {money(Math.round(value * 100), entryCur)}</T> : null}
+            <View style={{ width: 44, height: 4, borderRadius: 2, backgroundColor: keypadOpen ? '#FFFFFF' : 'rgba(255,255,255,0.3)', marginTop: 6 }} />
+          </Pressable>
+        )}
+        {!special ? (
+          <View style={{ alignItems: 'center', marginTop: 10 }}>
+            <Pressable onPress={() => setCurSheet(true)} accessibilityRole="button" accessibilityLabel={`Currency ${entryCur}. Change`}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 6, height: 32, paddingHorizontal: 12, borderRadius: 16,
+                backgroundColor: foreign ? '#FFFFFF' : 'rgba(255,255,255,0.13)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' }}>
+              <Icon name="currency-usd" size={16} color={foreign ? '#17122D' : '#FFFFFF'} />
+              <T v="semi" color={foreign ? '#17122D' : '#FFFFFF'} style={{ fontSize: 13 }}>{`${entryCur} · ${currencyInfo(entryCur).name}`}</T>
+            </Pressable>
+          </View>
+        ) : null}
+      </NightGradient>
 
       <ScrollView contentContainerStyle={{ padding: space.page, gap: 18, paddingBottom: 30 }} keyboardShouldPersistTaps="handled">
         {special && existing!.type === 'adjust' ? (
           <Field label="Correction amount" big value={signedAmount} onChangeText={setSignedAmount} keyboardType="numbers-and-punctuation" hint="Use a minus sign for money that went missing." />
-        ) : (
-          <Pressable onPress={() => setKeypadOpen(true)} accessibilityRole="button" accessibilityLabel={`Amount ${m(Math.round(value * 100))}. Tap to edit`}
-            style={{ alignItems: 'center', paddingVertical: 14 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 4 }}>
-              <T v="numLg" color={expr ? accent : c.faint} style={{ fontSize: 26, marginTop: 10 }}>{symbolOf(entryCur).trim()}</T>
-              <T v="display" color={expr ? c.ink : c.faint} style={{ fontSize: 56, lineHeight: 64 }} numberOfLines={1}>
-                {expr ? (hasOperator(expr) ? expr : Number(value).toLocaleString('en-PH', { maximumFractionDigits: 2 })) : '0'}
-              </T>
-            </View>
-            {hasOperator(expr) ? <T v="medium" color={c.muted}>= {money(Math.round(value * 100), entryCur)}</T> : null}
-            <View style={{ width: 44, height: 4, borderRadius: 2, backgroundColor: keypadOpen ? accent : c.line, marginTop: 6 }} />
-          </Pressable>
-        )}
-        {!special ? (
-          <View style={{ alignItems: 'center', marginTop: -8 }}>
-            <Chip icon="currency-usd" label={`${entryCur} · ${currencyInfo(entryCur).name}`} onPress={() => setCurSheet(true)} selected={foreign} />
-          </View>
         ) : null}
         {foreign ? (
           <View style={{ backgroundColor: c.surface, borderRadius: radius.lg, padding: 14, gap: 10 }}>
@@ -207,13 +248,13 @@ export default function Entry() {
           <Keypad expr={expr} onChange={setExpr} onDone={() => setKeypadOpen(false)} />
           <View style={{ flexDirection: 'row', gap: 10 }}>
             <Button variant="secondary" icon="chevron-down" label="Hide" small onPress={() => setKeypadOpen(false)} style={{ flex: 1 }} />
-            <Button label={isNew ? `Save ${kind}` : 'Save'} onPress={save} small style={{ flex: 2 }} />
+            {isNew ? <GradButton label={saveLabel} onPress={save} style={{ flex: 2, height: 48 }} /> : <Button label="Save" onPress={save} small style={{ flex: 2 }} />}
           </View>
         </View>
       ) : (
         <View style={{ paddingHorizontal: space.page, paddingTop: 10, paddingBottom: insets.bottom + 12, flexDirection: 'row', gap: 10, borderTopWidth: 1, borderColor: c.line }}>
           <View style={{ flex: 1 }}>
-            <Button label={isNew ? `Save ${special ? '' : kind}` : 'Save changes'} icon="check" onPress={save} />
+            {isNew && !special ? <GradButton label={saveLabel} onPress={save} /> : <Button label={isNew ? 'Save' : 'Save changes'} icon="check" onPress={save} />}
           </View>
         </View>
       )}

@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import { useData, safeJson } from '../data/DataContext';
 import { radius, useTheme } from '../theme';
 import { Bar, Block, Button, Card, Empty, Ring, Screen, Section, T } from '../components/ui';
-import { goalProgress } from '../lib/ledger';
+import { goalProgress, leftLabel } from '../lib/ledger';
 import { compactPeso, peso, todayISO } from '../lib/money';
 
 export default function Goals() {
@@ -43,7 +43,7 @@ export default function Goals() {
                   <T v="h3">{g.name}</T>
                   <T v="small">{peso(p.saved, { cents: false })} of {peso(g.target, { cents: false })}</T>
                   <T v="small" color={p.pct >= 1 ? c.income : p.onTrack ? c.income : c.warn}>
-                    {p.pct >= 1 ? 'Reached' : p.onTrack ? `On track · ${p.monthsLeft} months left` : `Needs ${compactPeso(p.needed)}/mo`}
+                    {p.pct >= 1 ? 'Reached' : p.onTrack ? `On track · ${leftLabel(p.months)}` : p.months < 1 ? `Needs ${compactPeso(p.needed)} by the deadline` : `Needs ${compactPeso(p.needed)}/mo`}
                   </T>
                 </View>
                 {g.annualRate > 0 ? <T v="label" color={c.income}>{g.annualRate / 100}%</T> : null}

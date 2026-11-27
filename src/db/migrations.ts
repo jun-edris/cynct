@@ -314,6 +314,11 @@ export const MIGRATIONS: string[] = [
   UPDATE recurring SET anchor_day = CAST(substr(next_due, 9, 2) AS INTEGER) WHERE frequency IN ('monthly', 'quarterly', 'yearly');
   UPDATE installments SET anchor_day = CAST(substr(next_due, 9, 2) AS INTEGER);
   `,
+  // v7: "Worth it?" after a spend — 1 worth it, 0 not really — and how it felt (treat, needed, rushed, planned).
+  `
+  ALTER TABLE transactions ADD COLUMN worth INTEGER CHECK (worth IS NULL OR worth IN (0, 1));
+  ALTER TABLE transactions ADD COLUMN feel TEXT;
+  `,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

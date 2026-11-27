@@ -60,6 +60,11 @@ export default function Settings() {
           <Row icon="bell-badge-outline" iconColor="#8B6CFF" title="Payment capture" sub={(data.settings.capture as { enabled?: boolean } | undefined)?.enabled ? 'On' : 'Maya, Wise, GoTyme notifications'} chevron onPress={() => router.push('/capture')} />
           <Row icon="cash-fast" iconColor="#2EC4B6" title="Paycheck plan" sub="Split a pay into bills, goals and free money" chevron onPress={() => router.push('/paycheck')} />
         </List>
+        <View style={{ marginTop: 10 }}>
+          <Select label="Ask “Worth it?” after spends of" value={String(data.settings.worthMin ?? 300)}
+            options={['0', '100', '300', '500', '1000', '999999'].map(v => ({ value: v, label: v === '0' ? 'Every spend' : v === '999999' ? 'Never' : `₱${Number(v).toLocaleString('en-PH')} or more` }))}
+            onChange={(v) => act(d => setSetting(d, 'worthMin', Number(v)))} />
+        </View>
       </Section>
 
       <Section title="Reports">

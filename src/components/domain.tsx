@@ -324,7 +324,7 @@ export function Toast() {
         <T v="semi" color={c.bg} style={{ flexShrink: 1 }}>{toastState.message}</T>
         {toastState.action ? (
           <Pressable onPress={() => { toastState.action!.run(); dismissToast(); }} hitSlop={10} accessibilityRole="button">
-            <T v="semi" color={c.mango}>{toastState.action.label}</T>
+            <T v="semi" color={c.mangoSoft}>{toastState.action.label}</T>
           </Pressable>
         ) : null}
       </View>

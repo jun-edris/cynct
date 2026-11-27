@@ -46,6 +46,8 @@ export const transactions = sqliteTable('transactions', {
   origCurrency: text('orig_currency'),
   // Foreign-currency entries: their value in pesos when they happened. Null until first seen with a rate.
   baseAmount: integer('base_amount'),
+  worth: integer('worth'),
+  feel: text('feel'),
   accountId: text('account_id'), // null only for goal interest and off-wallet debt entries
   toAccountId: text('to_account_id'),
   categoryId: text('category_id'),

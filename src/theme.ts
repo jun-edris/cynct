@@ -1,39 +1,47 @@
 import { useColorScheme } from 'react-native';
 import { useData } from './data/DataContext';
 
-// Navy & Mango. Mango carries the brand and every primary action; navy carries weight and hero blocks.
-// Text on mango is always navy (white on #FFB020 fails contrast).
+// K: night violet gradients over a warm cream page. Token names are kept from the first theme so every
+// screen picks the new look up: `mango` is now the brand accent (violet), `navy` the night hero blocks.
+// Text on the accent is always white (5.6:1 on #6B3BF5). Amber stays for Senti and highlights only.
 const light = {
-  bg: '#F7F5EF', surface: '#FFFFFF', sunk: '#EFEBE1', raised: '#FFFFFF',
-  ink: '#0B1426', inkSoft: '#2A3550', muted: '#6B7387', faint: '#A4AABA', line: '#E6E1D5',
-  navy: '#0B1426', navyText: '#F4F1E8', navyMuted: '#9AA6BD', navyLine: '#24345A',
-  mango: '#FFB020', mangoSoft: '#FFEFC9', onMango: '#0B1426',
-  income: '#1F9D63', incomeSoft: '#DDF5E8', spend: '#E04449', spendSoft: '#FDE4E4', warn: '#B7791F', warnSoft: '#FCF0D8',
-  info: '#3F6FE0', infoSoft: '#E3EBFD', scrim: 'rgba(11,20,38,0.5)',
+  bg: '#FAF7F2', surface: '#FFFFFF', sunk: '#EFEAE1', raised: '#FFFFFF',
+  ink: '#17122D', inkSoft: '#4A4466', muted: '#6E6886', faint: '#A9A3BC', line: '#ECE6DD',
+  navy: '#130D2E', navyText: '#FFFFFF', navyMuted: '#E7E0FF', navyLine: '#2D2560',
+  mango: '#6B3BF5', mangoSoft: '#ECE6FF', onMango: '#FFFFFF',
+  income: '#0F7A4A', incomeSoft: '#DDF3E6', spend: '#D23A7E', spendSoft: '#FFE2EF', warn: '#A86A12', warnSoft: '#FFEEC4',
+  info: '#3C6CF0', infoSoft: '#E1EAFF', scrim: 'rgba(19,13,46,0.55)',
+  // K extras
+  violet: '#6B3BF5', violetDeep: '#4B22C9', magenta: '#E5458F', blue: '#3C6CF0', amber: '#FFB020', night2: '#1E1647',
+  gradFrom: '#6B3BF5', gradMid: '#9B3FE0', gradTo: '#E5458F', onNightIn: '#8BF0BC', onNightOut: '#FF9CCB',
+  tViolet: '#ECE6FF', tBlue: '#E1EAFF', tMagenta: '#FFE2EF', tAmber: '#FFEEC4', tGreen: '#DDF3E6',
 };
 const dark: typeof light = {
-  bg: '#0B1426', surface: '#13213D', sunk: '#0F1A31', raised: '#1A2A4A',
-  ink: '#F4F1E8', inkSoft: '#D5D9E3', muted: '#97A3BC', faint: '#5C6A88', line: '#22345A',
-  navy: '#1A2A4A', navyText: '#F4F1E8', navyMuted: '#97A3BC', navyLine: '#2C3F68',
-  mango: '#FFB020', mangoSoft: '#3A2E12', onMango: '#0B1426',
-  income: '#3DD68C', incomeSoft: '#123528', spend: '#FF6B70', spendSoft: '#3A1A22', warn: '#F2C14E', warnSoft: '#3A2F12',
+  bg: '#0E0A20', surface: '#1A1535', sunk: '#141030', raised: '#221C42',
+  ink: '#F4F1FA', inkSoft: '#D6D0EA', muted: '#A39CC0', faint: '#6C6590', line: '#2A2350',
+  navy: '#1E1647', navyText: '#FFFFFF', navyMuted: '#CFC6F2', navyLine: '#3A2F70',
+  mango: '#8E6BFF', mangoSoft: '#2A2156', onMango: '#FFFFFF',
+  income: '#3DD68C', incomeSoft: '#123528', spend: '#FF6FA8', spendSoft: '#3A1630', warn: '#F2C14E', warnSoft: '#3A2F12',
   info: '#7FA3FF', infoSoft: '#1B2A55', scrim: 'rgba(0,0,0,0.6)',
+  violet: '#8E6BFF', violetDeep: '#B9A3FF', magenta: '#FF6FA8', blue: '#7FA3FF', amber: '#FFB020', night2: '#2A2160',
+  gradFrom: '#5A30D6', gradMid: '#8A35C9', gradTo: '#C93A7C', onNightIn: '#8BF0BC', onNightOut: '#FF9CCB',
+  tViolet: '#2A2156', tBlue: '#1B2A55', tMagenta: '#3A1630', tAmber: '#3A2F12', tGreen: '#123528',
 };
 export type Colors = typeof light;
 
 export const fonts = {
-  // Rounded display for numbers and headings
-  num: 'Nunito-ExtraBold',
-  numBlack: 'Nunito-Black',
-  head: 'Nunito-Bold',
-  // Body
-  body: 'Figtree',
-  medium: 'Figtree-Medium',
-  semi: 'Figtree-SemiBold',
-  bold: 'Figtree-Bold',
+  // Space Grotesk for numbers and headings, Inter for everything you read.
+  num: 'SpaceGrotesk-SemiBold',
+  numBlack: 'SpaceGrotesk-Bold',
+  head: 'SpaceGrotesk-Medium',
+  body: 'Inter',
+  medium: 'Inter-Medium',
+  semi: 'Inter-SemiBold',
+  bold: 'Inter-Bold',
 };
 
 export const radius = { xl: 28, lg: 22, md: 16, sm: 12, pill: 999 };
+export const ease = { out: [0.16, 1, 0.3, 1] as const, spring: [0.2, 0.9, 0.25, 1.15] as const };
 export const space = { page: 18 };
 
 export function useTheme(): { c: Colors; dark: boolean } {

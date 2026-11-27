@@ -1,30 +1,94 @@
-import React from 'react';
-import { Pressable, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Animated, Pressable, View, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Line, Polygon, Polyline } from 'react-native-svg';
 import { router } from 'expo-router';
 import { useData, safeJson } from '../../data/DataContext';
 import { isPayable, usePayUpcoming } from '../../data/actions';
-import { radius, useTheme } from '../../theme';
-import { Bar, Block, Button, Card, Empty, Icon, IconBubble, IconButton, List, Screen, Section, StatTile, T } from '../../components/ui';
+import { fonts, useTheme } from '../../theme';
+import { Bar, Block, Button, Card, Empty, Icon, IconBubble, List, Screen, Section, T } from '../../components/ui';
 import { readLayout, type HomeSection } from '../../lib/home';
 import { draftsFrom, readCapture } from '../../data/capture';
-import { EyeButton, Hills, TxRow, UpcomingRow } from '../../components/domain';
-import { compactPeso, monthKey, peso, todayISO, parseISO, nowMs } from '../../lib/money';
-import { budgetStatus, goalProgress, monthRange, netWorth, streak, summarize, upcoming } from '../../lib/ledger';
+import { Hills, TxRow, UpcomingRow } from '../../components/domain';
+import { Glass, NightGradient, OnNightPill, SentiBadge, SheetUp, useCountUp, useReduceMotion } from '../../components/k';
+import { lastMonths, monthFlow } from '../../lib/flow';
+import { setSetting } from '../../db/repo';
+import { compactPeso, peso, todayISO, parseISO, nowMs } from '../../lib/money';
+import { budgetStatus, goalProgress, leftLabel, netWorth, streak, upcoming } from '../../lib/ledger';
 
-function greeting(d = new Date()) {
-  const h = d.getHours();
-  return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+/** A round glass button for the gradient header. */
+function GlassButton({ icon, label, onPress }: { icon: string; label: string; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} hitSlop={4}
+      style={({ pressed }) => ({ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.13)',
+        borderWidth: 1, borderColor: 'rgba(255,255,255,0.26)', transform: [{ scale: pressed ? 0.92 : 1 }] })}>
+      <Icon name={icon} size={20} color="#FFFFFF" />
+    </Pressable>
+  );
+}
+
+const IN = '#8BF0BC', OUT = '#FF9CCB';
+
+/** Running income vs spending this month, drawn left to right once. */
+function MonthLines({ inc, out, width }: { inc: number[]; out: number[]; width: number }) {
+  const reduce = useReduceMotion();
+  const [reveal] = useState(() => new Animated.Value(reduce ? 1 : 0));
+  useEffect(() => { if (!reduce) Animated.timing(reveal, { toValue: 1, duration: 1200, delay: 200, useNativeDriver: false }).start(); }, [reveal, reduce]);
+  const H = 92, n = Math.max(2, inc.length);
+  const max = Math.max(1, inc[inc.length - 1] ?? 0, out[out.length - 1] ?? 0);
+  const pts = (arr: number[]) => arr.map((v, i) => `${(i / (n - 1)) * (width - 6)},${H - 4 - (v / max) * (H - 10)}`).join(' ');
+  const incPts = pts(inc), outPts = pts(out);
+  return (
+    <Animated.View style={{ width: reveal.interpolate({ inputRange: [0, 1], outputRange: [0, width] }), overflow: 'hidden', marginTop: 8 }}>
+      <Svg width={width} height={H}>
+        <Line x1={0} y1={H - 4} x2={width} y2={H - 4} stroke="rgba(255,255,255,0.25)" />
+        <Polygon points={`0,${H - 4} ${incPts} ${width - 6},${H - 4}`} fill="rgba(139,240,188,0.14)" />
+        <Polyline points={incPts} fill="none" stroke={IN} strokeWidth={2.5} strokeLinejoin="round" />
+        <Polyline points={outPts} fill="none" stroke={OUT} strokeWidth={2.5} strokeLinejoin="round" />
+      </Svg>
+    </Animated.View>
+  );
+}
+
+/** Six months of income and spending as paired bars that grow up from the baseline. */
+function MonthBars({ months }: { months: { key: string; income: number; expense: number }[] }) {
+  const reduce = useReduceMotion();
+  const [grow] = useState(() => new Animated.Value(reduce ? 1 : 0));
+  useEffect(() => { if (!reduce) Animated.timing(grow, { toValue: 1, duration: 800, useNativeDriver: true }).start(); }, [grow, reduce]);
+  const max = Math.max(1, ...months.map(m => Math.max(m.income, m.expense)));
+  return (
+    <View>
+      <View style={{ flexDirection: 'row', gap: 8, height: 92, alignItems: 'flex-end', marginTop: 8 }}>
+        {months.map(m => m.income || m.expense ? (
+          <View key={m.key} style={{ flex: 1, flexDirection: 'row', gap: 3, alignItems: 'flex-end', height: '100%' }}>
+            {[[m.income, IN], [m.expense, OUT]].map(([v, col], i) => (
+              <Animated.View key={i} style={{ flex: 1, height: `${Math.max(3, (Number(v) / max) * 100)}%`, borderRadius: 5, backgroundColor: String(col),
+                transformOrigin: 'bottom', transform: [{ scaleY: grow }] }} />
+            ))}
+          </View>
+        ) : <View key={m.key} style={{ flex: 1, height: 6, borderRadius: 4, borderWidth: 1, borderStyle: 'dashed', borderColor: 'rgba(255,255,255,0.4)' }} />)}
+      </View>
+      <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
+        {months.map(m => <T key={m.key} v="label" color="#E7E0FF" center style={{ flex: 1, fontSize: 11 }}>{parseISO(`${m.key}-01`).toLocaleDateString('en-PH', { month: 'short' })}</T>)}
+      </View>
+    </View>
+  );
 }
 
 export default function Home() {
   const { c, dark } = useTheme();
-  const { data, baseBalances, rtx, cats, goalFunds, plannedBase, missing } = useData();
+  const { data, act, baseBalances, rtx, cats, goalFunds, plannedBase, missing } = useData();
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const [view, setView] = useState<'month' | 'half'>('month');
   const pay = usePayUpcoming();
   const today = todayISO();
   const nw = netWorth(data.accounts, baseBalances, goalFunds);
-  const { start, end } = monthRange(monthKey(today));
-  const month = summarize(rtx, start, end, cats);
-  const day = summarize(rtx, today, today, cats);
+  const flow = monthFlow(rtx, today);
+  const months = lastMonths(rtx, today);
+  const shownNet = useCountUp(nw.net);
+  const hidden = data.settings.hideAmounts === true;
+  const monthShort = parseISO(today).toLocaleDateString('en-PH', { month: 'short' });
   const st = streak(data.transactions, today);
   const goal = data.goals.find(g => !g.archived);
   const soon = upcoming(plannedBase.recurring, plannedBase.installments.filter(i => i.paidCount < i.months), today, 14).slice(0, 5);
@@ -40,16 +104,20 @@ export default function Home() {
   const hasFolder = !!data.settings.backupFolderUri;
   const lastManual = data.settings.lastManualBackup as number | undefined;
   const needsBackup = !hasFolder && data.transactions.length >= 10 && (!lastManual || nowMs() - lastManual > 14 * 86_400_000);
-  const dateLabel = parseISO(today).toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric' });
 
   const capturePrefs = readCapture(data.settings);
   const toReview = capturePrefs.enabled ? draftsFrom(data.captured, capturePrefs).drafts.length : 0;
   const alerts = (<>
       {toReview ? (
-        <Card style={{ marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.infoSoft }} onPress={() => router.push('/capture')}>
-          <Icon name="bell-badge-outline" color={c.info} />
-          <T v="medium" style={{ flex: 1 }}>{`${toReview} payment${toReview === 1 ? '' : 's'} from your notifications to review`}</T>
-          <Icon name="chevron-right" color={c.info} />
+        <Card style={{ marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.tViolet }} onPress={() => router.push('/capture')}>
+          <SentiBadge size={40} />
+          <View style={{ flex: 1 }}>
+            <T v="semi">{`${toReview} payment${toReview === 1 ? '' : 's'} to sort`}</T>
+            <T v="small">From your notifications and screenshots</T>
+          </View>
+          <View style={{ height: 34, paddingHorizontal: 14, borderRadius: 17, backgroundColor: c.ink, alignItems: 'center', justifyContent: 'center' }}>
+            <T v="semi" color={c.bg} style={{ fontSize: 13 }}>Sort</T>
+          </View>
         </Card>
       ) : null}
       {missing.length ? (
@@ -69,32 +137,9 @@ export default function Home() {
 
   </>);
   const blocks: Record<HomeSection, React.ReactNode> = {
-    networth: (<>
-      <Block tone="mango" style={{ marginTop: 18 }} onPress={() => router.push('/overview')}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <T v="semi" color={c.onMango} style={{ opacity: 0.75 }}>Net worth</T>
-          <Icon name="arrow-top-right" size={20} color={c.onMango} />
-        </View>
-        <T v="display" color={c.onMango} style={{ marginTop: 6, fontSize: 42, lineHeight: 48 }} numberOfLines={1}>{peso(nw.net, { cents: false })}</T>
-        <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
-          {[['You have', nw.assets], ['You owe', -nw.liabilities]].map(([l, v]) => (
-            <View key={String(l)} style={{ flex: 1, backgroundColor: 'rgba(11,20,38,0.08)', borderRadius: radius.md, padding: 12 }}>
-              <T v="label" color={c.onMango} style={{ opacity: 0.7 }}>{String(l)}</T>
-              <T v="num" color={c.onMango} style={{ fontSize: 18, marginTop: 2 }}>{compactPeso(Number(v))}</T>
-            </View>
-          ))}
-        </View>
-      </Block>
-
-    </>),
-    stats: (<>
-      <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
-        <StatTile label="Spent today" value={compactPeso(day.expense)} />
-        <StatTile label={`${parseISO(today).toLocaleDateString('en-PH', { month: 'long' })} in`} value={compactPeso(month.income)} color={c.income} />
-        <StatTile label="Spent" value={compactPeso(month.expense)} color={c.spend} />
-      </View>
-
-    </>),
+    // Net worth and this month's in/out live in the gradient header now.
+    networth: null,
+    stats: null,
     goal: (<>
       {goal ? (() => {
         const g = goalProgress({ ...goal, annualRate: goal.annualRate / 10_000, accountIds: safeJson<string[]>(goal.accountIds, []) }, baseBalances, rtx, today);
@@ -107,7 +152,7 @@ export default function Home() {
                   <T v="semi" color={c.mango}>{Math.round(g.pct * 1000) / 10}%</T>
                 </View>
                 <T v="display" color={c.navyText} style={{ marginTop: 4, fontSize: 36, lineHeight: 42 }}>{peso(g.saved, { cents: false })}</T>
-                <T v="medium" color={c.navyMuted}>of {compactPeso(goal.target)} · {g.monthsLeft} months left · needs {compactPeso(g.needed)}/mo</T>
+                <T v="medium" color={c.navyMuted}>of {compactPeso(goal.target)} · {leftLabel(g.months)} · needs {compactPeso(g.needed)}{g.months < 1 ? '' : '/mo'}</T>
               </View>
               <View style={{ marginTop: 10 }}>
                 <Hills pct={g.pct} label={compactPeso(goal.target)} fill={c.mango} back={dark ? '#24365C' : '#16233F'} mid={dark ? '#2C4170' : '#1F3155'} ink={c.navyText} house={c.mango} />
@@ -165,29 +210,59 @@ export default function Home() {
     </>),
   };
   return (
-    <Screen headerless padBottom={130}>
-      <View style={{ paddingTop: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <View style={{ flex: 1 }}>
-          <T v="label">{dateLabel}</T>
-          <T v="title" style={{ marginTop: 2 }}>{greeting()}</T>
+    <Screen headerless padBottom={130} edge>
+      <NightGradient style={{ marginHorizontal: -18, paddingTop: insets.top + 12, paddingHorizontal: 18, paddingBottom: 46 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <T v="h2" color="#FFFFFF" style={{ flex: 1, fontFamily: fonts.numBlack, fontSize: 21 }}>cynct</T>
+          <Pressable onPress={() => router.push('/history')} accessibilityRole="button" accessibilityLabel={`${st.current} day logging streak`}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 5, height: 40, paddingHorizontal: 12, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.13)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.26)' }}>
+            <Icon name={st.current ? 'fire' : 'fire-off'} size={18} color={st.current ? c.amber : '#E7E0FF'} />
+            <T v="num" color="#FFFFFF" style={{ fontSize: 14 }}>{st.current}</T>
+          </Pressable>
+          <GlassButton icon={hidden ? 'eye-off-outline' : 'eye-outline'} label={hidden ? 'Show amounts' : 'Hide amounts'} onPress={() => act(db => setSetting(db, 'hideAmounts', !hidden))} />
+          <GlassButton icon="cog-outline" label="Settings" onPress={() => router.push('/settings')} />
         </View>
-        <Pressable onPress={() => router.push('/history')} accessibilityRole="button" accessibilityLabel={`${st.current} day logging streak`}
-          style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: st.loggedToday ? c.mangoSoft : c.surface, borderRadius: radius.pill, paddingHorizontal: 12, height: 40, marginRight: 6 }}>
-          <Icon name={st.current ? 'fire' : 'fire-off'} size={20} color={st.current ? c.mango : c.faint} />
-          <T v="num" style={{ fontSize: 15 }}>{st.current}</T>
+        <Pressable onPress={() => router.push('/overview')} accessibilityRole="button" accessibilityLabel={`Net worth ${peso(nw.net, { cents: false })}. Open overview`} style={{ marginTop: 14 }}>
+          <T v="medium" color="#E7E0FF">You have</T>
+          <T v="display" color="#FFFFFF" style={{ fontSize: 50, lineHeight: 58, marginTop: 2 }} numberOfLines={1}>{peso(hidden ? nw.net : shownNet, { cents: false })}</T>
         </Pressable>
-        <EyeButton />
-        <View style={{ width: 6 }} />
-        <IconButton name="cog-outline" label="Settings" onPress={() => router.push('/settings')} filled />
-      </View>
 
-      {layout.order.filter(k => !layout.hidden.includes(k)).map((k, i) => (
-        <React.Fragment key={k}>
-          {blocks[k]}
-          {/* Warnings sit right after the first section so they're always seen. */}
-          {i === 0 ? alerts : null}
-        </React.Fragment>
-      ))}
+        <Glass style={{ marginTop: 12, padding: 12, paddingBottom: 8 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+            <View><T v="label" color="#E7E0FF">{`In · ${monthShort}`}</T><T v="num" color={IN} style={{ fontSize: 17 }}>{compactPeso(flow.income)}</T></View>
+            <View><T v="label" color="#E7E0FF">{`Out · ${monthShort}`}</T><T v="num" color={OUT} style={{ fontSize: 17 }}>{compactPeso(flow.expense)}</T></View>
+            <View style={{ flex: 1 }} />
+            <View style={{ flexDirection: 'row', padding: 3, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.12)' }} accessibilityRole="radiogroup">
+              {([['month', 'Month'], ['half', '6 months']] as const).map(([k, l]) => (
+                <Pressable key={k} onPress={() => setView(k)} accessibilityRole="radio" accessibilityState={{ selected: view === k }}
+                  style={{ height: 28, paddingHorizontal: 10, borderRadius: 9, alignItems: 'center', justifyContent: 'center', backgroundColor: view === k ? '#FFFFFF' : 'transparent' }}>
+                  <T v="label" color={view === k ? '#17122D' : '#FFFFFF'} style={{ fontSize: 12, fontFamily: view === k ? fonts.semi : fonts.medium }}>{l}</T>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+          {view === 'month' ? (
+            <View accessible accessibilityLabel={`This month so far: in ${peso(flow.income, { cents: false })}, out ${peso(flow.expense, { cents: false })}`}>
+              <MonthLines key={`m${today}`} inc={flow.inc} out={flow.out} width={width - 60} />
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <T v="label" color="#E7E0FF" style={{ fontSize: 11 }}>{`${monthShort} 1`}</T>
+                <T v="label" color="#E7E0FF" style={{ fontSize: 11 }}>{`Net ${peso(flow.income - flow.expense, { cents: false, sign: true })}`}</T>
+                <T v="label" color="#E7E0FF" style={{ fontSize: 11 }}>Today</T>
+              </View>
+            </View>
+          ) : <MonthBars months={months} />}
+        </Glass>
+
+        <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+          <OnNightPill label="Spend" style={{ flex: 1 }} icon={<Icon name="arrow-up" size={18} color="#D23A7E" />} onPress={() => router.push({ pathname: '/tx/[id]', params: { id: 'new', type: 'expense' } })} />
+          <OnNightPill label="Income" style={{ flex: 1 }} icon={<Icon name="arrow-down" size={18} color="#0F7A4A" />} onPress={() => router.push({ pathname: '/tx/[id]', params: { id: 'new', type: 'income' } })} />
+          <OnNightPill label="Move" style={{ flex: 1 }} icon={<Icon name="swap-horizontal" size={18} color="#6B3BF5" />} onPress={() => router.push({ pathname: '/transfer/[id]', params: { id: 'new' } })} />
+        </View>
+      </NightGradient>
+
+      <SheetUp style={{ marginHorizontal: -18, paddingHorizontal: 18, paddingTop: 4 }}>
+      {alerts}
+      {layout.order.filter(k => !layout.hidden.includes(k)).map(k => <React.Fragment key={k}>{blocks[k]}</React.Fragment>)}
       {recap ? (
         <Card style={{ marginTop: 18, flexDirection: 'row', alignItems: 'center', gap: 12 }} onPress={() => router.push('/recap')}>
           <IconBubble icon="play-circle-outline" color={c.mango} />
@@ -195,6 +270,7 @@ export default function Home() {
           <Icon name="chevron-right" color={c.faint} />
         </Card>
       ) : null}
+      </SheetUp>
     </Screen>
   );
 }

@@ -45,7 +45,15 @@ export default function GoalDetail() {
     const kind = move!;
     let txId = '';
     if (act(db => { txId = goalMove(db, g, kind, accountId, amt, date).id; }, kind === 'in' ? `Added ${peso(amt)} to ${g.name}` : `Withdrew ${peso(amt)}`,
-      { label: 'Undo', run: () => act(db => softDelete(db, [txId])) })) { setMove(null); setAmount(''); }
+      { label: 'Undo', run: () => act(db => softDelete(db, [txId])) })) {
+      setMove(null); setAmount('');
+      if (kind === 'in') {
+        // Senti drops in for a saving too.
+        const after = Math.min(1, (p.saved + toBase(amt, curOf(accountId), rates)) / Math.max(1, g.target));
+        router.push({ pathname: '/saved', params: { kind: 'save', tx: txId, ask: '1', title: `${g.name} · from ${data.accounts.find(a => a.id === accountId)?.name ?? ''}`,
+          amount: `Saved ${peso(amt, { cents: false })}`, sub: `${Math.round(after * 100)}% there` } });
+      }
+    }
   };
 
   const del = () => {
@@ -77,7 +85,7 @@ export default function GoalDetail() {
 
       <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
         <StatTile label="Left to save" value={compactPeso(p.left)} />
-        <StatTile label="Needed monthly" value={compactPeso(p.needed)} color={p.onTrack ? c.income : c.warn} sub={`plan ${compactPeso(g.monthly)}`} />
+        <StatTile label={p.months < 1 ? 'Needed by deadline' : 'Needed monthly'} value={compactPeso(p.needed)} color={p.onTrack ? c.income : c.warn} sub={`plan ${compactPeso(g.monthly)}`} />
       </View>
       <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
         <StatTile label="Interest earned" value={compactPeso(p.interest)} color={c.income} sub={g.annualRate ? `${g.annualRate / 100}% a year, monthly` : 'No rate set'} />

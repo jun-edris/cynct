@@ -4,6 +4,7 @@ import { Redirect, Tabs, router, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useData } from '../../data/DataContext';
 import { fonts, radius, useTheme } from '../../theme';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { Chip, Grid, Icon, IconBubble, Sheet, T } from '../../components/ui';
 import { useApplyTemplate } from '../../data/actions';
 import { Squish, SPRING, haptic, useSpring } from '../../components/motion';
@@ -53,18 +54,36 @@ function AddMenu({ open, onClose }: { open: boolean; onClose: () => void }) {
   );
 }
 
-/** M3 Expressive navigation item: a pill indicator springs open behind the active icon. */
+/** K navigation item: icon over label, with a soft violet pill that springs open behind the active icon. */
 function TabItem({ t, on }: { t: (typeof TABS)[number]; on: boolean }) {
   const { c } = useTheme();
   const k = useSpring(on ? 1 : 0, SPRING.fastSpatial);
   return (
     <Pressable onPress={() => { if (!on) haptic('select'); router.navigate(t.path); }} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={t.label}
-      style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3, height: 60 }}>
-      <Animated.View style={{ width: k.interpolate({ inputRange: [0, 1], outputRange: [32, 56] }), height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center',
-        backgroundColor: on ? c.mangoSoft : 'transparent' }}>
-        <Icon name={on ? t.on : t.icon} size={24} color={on ? c.ink : c.faint} />
+      style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3, height: 70 }}>
+      <Animated.View style={{ width: k.interpolate({ inputRange: [0, 1], outputRange: [30, 54] }), height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center',
+        backgroundColor: on ? c.tViolet : 'transparent' }}>
+        <Icon name={on ? t.on : t.icon} size={22} color={on ? c.ink : c.faint} />
       </Animated.View>
-      <T v="label" color={on ? c.ink : c.faint} style={{ fontFamily: on ? fonts.bold : fonts.medium, fontSize: 12 }}>{t.label}</T>
+      <T v="label" color={on ? c.ink : c.faint} style={{ fontFamily: on ? fonts.bold : fonts.medium, fontSize: 11 }}>{t.label}</T>
+    </Pressable>
+  );
+}
+
+function Fab({ onPress }: { onPress: () => void }) {
+  const { c } = useTheme();
+  return (
+    <Pressable onPress={() => { haptic(); onPress(); }} accessibilityRole="button" accessibilityLabel="Add an entry"
+      style={({ pressed }) => ({ width: 72, height: 72, borderRadius: 36, marginTop: -36, marginHorizontal: 2, backgroundColor: c.bg, alignItems: 'center', justifyContent: 'center',
+        transform: [{ scale: pressed ? 0.95 : 1 }] })}>
+      <View style={{ width: 60, height: 60, borderRadius: 30, overflow: 'hidden', alignItems: 'center', justifyContent: 'center',
+        shadowColor: c.violet, shadowOpacity: 0.6, shadowRadius: 14, shadowOffset: { width: 0, height: 10 }, elevation: 8 }}>
+        <Svg width={60} height={60} style={{ position: 'absolute' }}>
+          <Defs><LinearGradient id="fab" x1="0" y1="0" x2="1" y2="0.5"><Stop offset="0" stopColor={c.gradFrom} /><Stop offset="0.45" stopColor={c.gradMid} /><Stop offset="1" stopColor={c.gradTo} /></LinearGradient></Defs>
+          <Rect x={0} y={0} width={60} height={60} fill="url(#fab)" />
+        </Svg>
+        <Icon name="plus" size={30} color="#FFFFFF" />
+      </View>
     </Pressable>
   );
 }
@@ -76,15 +95,11 @@ function TabBar() {
   const [open, setOpen] = useState(false);
   const item = (t: (typeof TABS)[number]) => <TabItem key={t.path} t={t} on={pathname === t.path} />;
   return (
-    <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 14, paddingBottom: insets.bottom + 10 }} pointerEvents="box-none">
-      <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: c.surface, borderRadius: radius.xl, paddingHorizontal: 6,
-        shadowColor: '#0B1426', shadowOpacity: 0.12, shadowRadius: 18, shadowOffset: { width: 0, height: 6 }, elevation: 10 }}>
+    <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 12, paddingBottom: insets.bottom + 12 }} pointerEvents="box-none">
+      <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: c.surface, borderRadius: 30, borderWidth: 1, borderColor: c.line, height: 70,
+        shadowColor: '#17122D', shadowOpacity: 0.18, shadowRadius: 22, shadowOffset: { width: 0, height: 12 }, elevation: 10 }}>
         {item(TABS[0])}{item(TABS[1])}
-        <Pressable onPress={() => setOpen(true)} accessibilityRole="button" accessibilityLabel="Add a transaction"
-          style={({ pressed }) => ({ width: 58, height: 58, borderRadius: 29, backgroundColor: c.mango, alignItems: 'center', justifyContent: 'center',
-            marginHorizontal: 6, marginTop: -26, borderWidth: 5, borderColor: c.bg, transform: [{ scale: pressed ? 0.95 : 1 }] })}>
-          <Icon name="plus" size={30} color={c.onMango} />
-        </Pressable>
+        <Fab onPress={() => setOpen(true)} />
         {item(TABS[2])}{item(TABS[3])}
       </View>
       <AddMenu open={open} onClose={() => setOpen(false)} />

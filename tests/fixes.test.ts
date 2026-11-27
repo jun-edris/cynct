@@ -93,3 +93,79 @@ describe.skipIf(!hasSqlite)('database v6', () => {
     expect(rec.find(x => x.id === 'w')?.anchorDay).toBeNull();
   });
 });
+
+import { dailySpendingDetail } from '../src/lib/paycheck';
+import { monthsUntil } from '../src/lib/money';
+import { goalProgress, leftLabel } from '../src/lib/ledger';
+
+describe('problem 5: day-to-day estimate', () => {
+  const day = (d: number) => `2026-11-${String(d).padStart(2, '0')}`;
+  it('divides by days tracked (min 14), not the full window', () => {
+    const txs = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(d => ({ type: 'expense', amount: 20000, date: day(d) }));
+    const r = dailySpendingDetail(txs, day(20), 60);
+    expect(r.days).toBe(20);
+    expect(r.daily).toBe(10000);
+  });
+  it('floors very short history at 14 days', () => {
+    const r = dailySpendingDetail([{ type: 'expense', amount: 70000, date: day(26) }], day(27), 60);
+    expect(r.days).toBe(14);
+    expect(r.daily).toBe(5000);
+  });
+  it('leaves out a one-off big buy', () => {
+    const small = Array.from({ length: 20 }, (_, i) => ({ type: 'expense', amount: 30000, date: day(i + 1) }));
+    const r = dailySpendingDetail([...small, { type: 'expense', amount: 2500000, date: day(15) }], day(30), 30);
+    expect(r.oneOffs).toBe(1);
+    expect(r.oneOffTotal).toBe(2500000);
+    expect(r.daily).toBe(20000);
+  });
+  it('keeps planned payments out and needs 5+ spends before flagging one-offs', () => {
+    const r = dailySpendingDetail([
+      { type: 'expense', amount: 1000000, date: day(2), recurringId: 'r' },
+      { type: 'expense', amount: 500000, date: day(3) }, { type: 'expense', amount: 10000, date: day(4) },
+    ], day(30), 30);
+    expect(r.oneOffs).toBe(0);
+    expect(r.daily).toBe(Math.round(510000 / 29)); // tracking since the 2nd
+  });
+});
+
+describe('problem 6: months to a deadline', () => {
+  it('is fractional and month-length aware', () => {
+    expect(monthsUntil('2026-11-30', '2027-01-01')).toBeCloseTo(1 + 2 / 31, 3);
+    expect(monthsUntil('2026-11-01', '2026-11-30')).toBeCloseTo(29 / 30, 3);
+    expect(monthsUntil('2026-01-31', '2026-03-01')).toBeGreaterThan(1);
+    expect(monthsUntil('2026-11-27', '2026-11-27')).toBe(0);
+    expect(monthsUntil('2026-11-27', '2026-10-01')).toBe(0);
+  });
+  it('asks for the whole gap when under a month is left, a monthly rate otherwise', () => {
+    const g = { id: 'g', target: 1000000, startingSaved: 0, monthly: 0, annualRate: 0, deadline: '2026-12-10', accountIds: [] as string[] };
+    const near = goalProgress(g, new Map(), [], '2026-11-27');
+    expect(near.needed).toBe(1000000);
+    expect(leftLabel(near.months)).toBe('under a month left');
+    const far = goalProgress({ ...g, deadline: '2027-01-01' }, new Map(), [], '2026-11-30');
+    expect(far.needed).toBe(Math.ceil(1000000 / far.months));
+    expect(far.needed).toBeLessThan(1000000);
+    expect(leftLabel(far.months)).toBe('1 month left');
+  });
+});
+
+import { lastMonths, monthFlow } from '../src/lib/flow';
+
+describe('home flow graph', () => {
+  const txs = [
+    { id: 'a', type: 'income', amount: 1000, date: '2026-11-02', accountId: 'x', toAccountId: null, categoryId: null, fee: 0, deletedAt: null },
+    { id: 'b', type: 'expense', amount: 300, date: '2026-11-03', accountId: 'x', toAccountId: null, categoryId: null, fee: 0, deletedAt: null },
+    { id: 'c', type: 'expense', amount: 200, date: '2026-10-15', accountId: 'x', toAccountId: null, categoryId: null, fee: 0, deletedAt: null },
+  ];
+  it('builds running totals for the month so far', () => {
+    const f = monthFlow(txs as never, '2026-11-04');
+    expect(f.days).toEqual(['2026-11-01', '2026-11-02', '2026-11-03', '2026-11-04']);
+    expect(f.inc).toEqual([0, 1000, 1000, 1000]);
+    expect(f.out).toEqual([0, 0, 300, 300]);
+  });
+  it('totals the last six months, oldest first', () => {
+    const m = lastMonths(txs as never, '2026-11-04');
+    expect(m.map(x => x.key)).toEqual(['2026-06', '2026-07', '2026-08', '2026-09', '2026-10', '2026-11']);
+    expect(m[4]).toEqual({ key: '2026-10', income: 0, expense: 200 });
+    expect(m[5]).toEqual({ key: '2026-11', income: 1000, expense: 300 });
+  });
+});

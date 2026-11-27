@@ -134,6 +134,11 @@ export function freezeBaseAmounts(db: DB, rows: [string, number][]) {
   db.transaction(tx => { for (const [id, v] of rows) tx.update(transactions).set({ baseAmount: v }).where(eq(transactions.id, id)).run(); });
 }
 
+/** The answer to "Worth it?" after a spend: worth (1/0, or null to clear) and how it felt. */
+export function setWorth(db: DB, txId: string, worth: 0 | 1 | null, feel: string | null) {
+  db.update(transactions).set({ worth, feel, updatedAt: Date.now() }).where(eq(transactions.id, txId)).run();
+}
+
 export function setCaptured(db: DB, ids: string[], status: 'new' | 'added' | 'dismissed', txId: string | null = null) {
   for (const id of ids) db.update(captured).set({ status, txId }).where(eq(captured.id, id)).run();
 }
@@ -224,7 +229,7 @@ export function saveAccount(db: DB, account: Account, correction: number) {
 export function newTx(p: Partial<Transaction> & Pick<Transaction, 'type' | 'amount' | 'date'>): Transaction {
   const now = Date.now();
   return {
-    id: uid(), fee: 0, toAmount: null, origAmount: null, origCurrency: null, baseAmount: null, accountId: null, toAccountId: null, categoryId: null, time: null, note: '', counterparty: null, heldFor: null, photoUri: null,
+    id: uid(), fee: 0, toAmount: null, origAmount: null, origCurrency: null, baseAmount: null, worth: null, feel: null, accountId: null, toAccountId: null, categoryId: null, time: null, note: '', counterparty: null, heldFor: null, photoUri: null,
     tags: '[]', recurringId: null, installmentId: null, debtId: null, debtRole: null, goalId: null, tripId: null, deletedAt: null,
     createdAt: now, updatedAt: now, ...p,
   };
@@ -387,7 +392,7 @@ export function applyPwaImport(db: DB, p: PwaImport) {
 
 // Kept from when the app was called Bahay so every existing backup still restores.
 export const BACKUP_APP = 'bahay-native';
-export const BACKUP_VERSION = 6;
+export const BACKUP_VERSION = 7;
 
 export function exportAll(db: DB) {
   const d = loadAll(db);

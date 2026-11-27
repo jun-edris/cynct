@@ -6,7 +6,7 @@ import { radius, useTheme } from '../theme';
 import { Block, Card, Chip, DateField, Field, Icon, List, Note, Row, Screen, Section, T, Toggle } from '../components/ui';
 import { forecast, goalProgress, monthlyEquivalent, upcoming } from '../lib/ledger';
 import { setSetting } from '../db/repo';
-import { dailySpending, goalShare, nextPayday, payDays, payShareOf, planPaycheck, type PlanBill } from '../lib/paycheck';
+import { dailySpendingDetail, goalShare, nextPayday, payDays, payShareOf, planPaycheck, type PlanBill } from '../lib/paycheck';
 import { addDays, dayLabel, lastDayOfMonth, peso, toCentavos, todayISO } from '../lib/money';
 
 const INVEST = [0, 5, 10, 15, 20];
@@ -42,7 +42,8 @@ export default function PaycheckPlan() {
   }, payDate, days).items.filter(i => i.direction === 'out' && i.date < next)
     .map(i => ({ key: i.key, name: i.name, date: i.date, amount: i.amount, source: i.source })), [data, baseBalances, rtx, plannedBase, payDate, days, next]);
 
-  const estDaily = useMemo(() => dailySpending(rtx, today, 60), [rtx, today]);
+  const est = useMemo(() => dailySpendingDetail(rtx, today, 60), [rtx, today]);
+  const estDaily = est.daily;
   const dailySpend = dayOverride ? Math.round((toCentavos(dayOverride) || 0) / days) : estDaily;
 
   const pay = toCentavos(amount || '0') || 0;
@@ -140,7 +141,7 @@ export default function PaycheckPlan() {
           <Section title="Day-to-day">
             <Field label={`Food, transport and errands for ${days} days`} value={dayOverride} onChangeText={setDayOverride} keyboardType="decimal-pad" prefix="₱"
               placeholder={String(Math.round(estDaily * days / 100))}
-              hint={estDaily ? `Cynct’s estimate: about ${peso(estDaily, { cents: false })} a day, from your last 60 days. Type your own to change it.` : 'Not enough history yet. Type what you expect to spend.'} />
+              hint={estDaily ? `Cynct’s estimate: about ${peso(estDaily, { cents: false })} a day, from your last ${est.days} days${est.oneOffs ? `, leaving out ${est.oneOffs === 1 ? 'one big one-off' : `${est.oneOffs} big one-offs`} (${peso(est.oneOffTotal, { cents: false })})` : ''}. Type your own to change it.` : 'Not enough history yet. Type what you expect to spend.'} />
           </Section>
 
           <Section title="Goals" aside={plan.wanted.save ? peso(plan.save, { cents: false }) : undefined}>

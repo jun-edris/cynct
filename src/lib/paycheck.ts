@@ -79,22 +79,43 @@ export function nextPayday(
   return (after.find(i => i.categoryId && salaryIds.has(i.categoryId)) ?? after[0])?.date ?? null;
 }
 
+type SpendTx = { type: string; amount: number; date: string; deletedAt?: number | null; recurringId?: string | null; installmentId?: string | null; debtId?: string | null };
+
+export interface DailyDetail { daily: number; days: number; oneOffs: number; oneOffTotal: number }
+
 /**
  * Typical everyday spending per day over the last `window` days: expenses that aren't planned
  * payments, installments or debt payments (those are already counted as bills).
+ * - Short history: divides by the days you've actually been tracking (at least 14), not the full window.
+ * - One-offs: a single spend over 5× your typical spend that is also over 15% of the window's total
+ *   (a phone, a plane ticket) is left out, so one big buy doesn't inflate every future day.
  */
-export function dailySpending(
-  txs: { type: string; amount: number; date: string; deletedAt?: number | null; recurringId?: string | null; installmentId?: string | null; debtId?: string | null }[],
-  today: string, window = 60,
-): number {
+export function dailySpendingDetail(txs: SpendTx[], today: string, window = 60): DailyDetail {
   const from = addDays(today, -window);
-  let total = 0;
+  let first: string | null = null;
+  const spends: number[] = [];
   for (const t of txs) {
-    if (t.deletedAt || t.type !== 'expense' || t.date <= from || t.date > today) continue;
+    if (t.deletedAt || t.date > today) continue;
+    if (first === null || t.date < first) first = t.date;
+    if (t.type !== 'expense' || t.date <= from) continue;
     if (t.recurringId || t.installmentId || t.debtId) continue;
-    total += t.amount;
+    spends.push(t.amount);
   }
-  return Math.round(total / window);
+  if (first === null || spends.length === 0) return { daily: 0, days: 0, oneOffs: 0, oneOffTotal: 0 };
+  const tracked = daysBetween(first, today) + 1;
+  const days = Math.min(window, Math.max(14, tracked));
+  const total = spends.reduce((a, b) => a + b, 0);
+  const sorted = [...spends].sort((a, b) => a - b);
+  const median = sorted[Math.floor((sorted.length - 1) / 2)];
+  let oneOffs = 0, oneOffTotal = 0;
+  if (spends.length >= 5) {
+    for (const v of spends) if (v > median * 5 && v > total * 0.15) { oneOffs++; oneOffTotal += v; }
+  }
+  return { daily: Math.round((total - oneOffTotal) / days), days, oneOffs, oneOffTotal };
+}
+
+export function dailySpending(txs: SpendTx[], today: string, window = 60): number {
+  return dailySpendingDetail(txs, today, window).daily;
 }
 
 /**

@@ -118,6 +118,16 @@ export function monthsBetween(from: string, to: string): number {
   return (y2 - y1) * 12 + (m2 - m1);
 }
 
+/** Months from `from` to `to` as a fraction: whole calendar months, then leftover days over that month's length. 0 if past. */
+export function monthsUntil(from: string, to: string): number {
+  if (to <= from) return 0;
+  let whole = Math.max(0, monthsBetween(from, to));
+  while (whole > 0 && addMonths(from, whole) > to) whole--;
+  const base = addMonths(from, whole);
+  const next = addMonths(from, whole + 1);
+  return whole + daysBetween(base, to) / Math.max(1, daysBetween(base, next));
+}
+
 export function daysBetween(from: string, to: string): number {
   return Math.round((parseISO(to).getTime() - parseISO(from).getTime()) / 86_400_000);
 }

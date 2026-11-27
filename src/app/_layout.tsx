@@ -1,11 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { AppState, Text, View } from 'react-native';
-import { Stack, SplashScreen, router } from 'expo-router';
+import { Stack, SplashScreen, router, usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts } from 'expo-font';
-import { Nunito_700Bold, Nunito_800ExtraBold, Nunito_900Black } from '@expo-google-fonts/nunito';
-import { Figtree_400Regular, Figtree_500Medium, Figtree_600SemiBold, Figtree_700Bold } from '@expo-google-fonts/figtree';
+import { SpaceGrotesk_500Medium, SpaceGrotesk_600SemiBold, SpaceGrotesk_700Bold } from '@expo-google-fonts/space-grotesk';
+import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import { openDb, prepareDb } from '../db/client';
 import { creditInterest, ensureDefaults, purgeOld, type DB } from '../db/repo';
 import { DataProvider, useData } from '../data/DataContext';
@@ -26,8 +26,8 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function RootLayout() {
   const [loaded, fontError] = useFonts({
-    [fonts.head]: Nunito_700Bold, [fonts.num]: Nunito_800ExtraBold, [fonts.numBlack]: Nunito_900Black,
-    [fonts.body]: Figtree_400Regular, [fonts.medium]: Figtree_500Medium, [fonts.semi]: Figtree_600SemiBold, [fonts.bold]: Figtree_700Bold,
+    [fonts.head]: SpaceGrotesk_500Medium, [fonts.num]: SpaceGrotesk_600SemiBold, [fonts.numBlack]: SpaceGrotesk_700Bold,
+    [fonts.body]: Inter_400Regular, [fonts.medium]: Inter_500Medium, [fonts.semi]: Inter_600SemiBold, [fonts.bold]: Inter_700Bold,
   });
   const [dbError, setDbError] = useState<string | null>(null);
   const [db, setDb] = useState<DB | null>(null);
@@ -50,7 +50,7 @@ export default function RootLayout() {
 
   // Plain Text here: the theme needs the database, which is what failed.
   if (dbError) return (
-    <View style={{ flex: 1, justifyContent: 'center', padding: 24, gap: 8, backgroundColor: '#0B1426' }}>
+    <View style={{ flex: 1, justifyContent: 'center', padding: 24, gap: 8, backgroundColor: '#130D2E' }}>
       <Text style={{ fontSize: 18, fontWeight: '700', color: '#F4F1E8' }}>Couldn’t open the database.</Text>
       <Text style={{ fontSize: 14, color: '#97A3BC' }}>{dbError}</Text>
     </View>
@@ -119,6 +119,7 @@ function Reminders() {
 
 function Shell() {
   const { c, dark } = useTheme();
+  const pathname = usePathname();
   const { db, data, rtx, reload, toast } = useData();
 
   useEffect(() => {
@@ -140,7 +141,8 @@ function Shell() {
 
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
-      <StatusBar style={dark ? 'light' : 'dark'} />
+      {/* Light icons over the night gradient on Home and the after-save screen. */}
+      <StatusBar style={dark || pathname === '/' || pathname === '/saved' ? 'light' : 'dark'} />
       <AutoRates />
       <Reminders />
       <CaptureSync />
@@ -151,6 +153,7 @@ function Shell() {
           <Stack.Screen name="tx/[id]" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="transfer/[id]" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="quick" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+          <Stack.Screen name="saved" options={{ animation: 'fade', gestureEnabled: false }} />
         </Stack>
         <Toast />
       </LockGate>

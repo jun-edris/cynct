@@ -6,7 +6,7 @@ import { Button, Chip, ColorPicker, DateField, ErrorText, Field, Footer, FormRow
 import { PhotoField } from '../../components/domain';
 import { upsert } from '../../db/repo';
 import { SWATCHES } from '../../lib/seed';
-import { addMonths, requiredMonthly, inputValue, monthsBetween, nowMs, peso, toCentavos, todayISO, uid } from '../../lib/money';
+import { addMonths, requiredMonthly, inputValue, monthsUntil, nowMs, peso, toCentavos, todayISO, uid } from '../../lib/money';
 
 export default function GoalEdit() {
   // name/target/monthly/months prefill a new goal, e.g. from the emergency fund calculator.
@@ -29,7 +29,7 @@ export default function GoalEdit() {
 
   const tgt = toCentavos(target);
   const start = toCentavos(starting) || 0;
-  const months = Math.max(1, monthsBetween(todayISO(), deadline));
+  const months = Math.max(1, monthsUntil(todayISO(), deadline));
   const suggestion = tgt > 0 ? requiredMonthly(tgt, start, months, (Number(rate) || 0) / 100) : 0;
 
   const save = () => {
