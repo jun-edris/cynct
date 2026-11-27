@@ -2,6 +2,7 @@
 import type { Account, Budget, Category, Goal, Recurring, Transaction } from '../db/schema';
 import { ACCOUNT_ICONS, DEFAULT_CATEGORIES } from './seed';
 import { uid } from './money';
+import { anchorFor } from './ledger';
 
 type Obj = Record<string, unknown>;
 const str = (v: unknown, d = '') => (typeof v === 'string' ? v : d);
@@ -57,7 +58,7 @@ export function convertPwaBackup(data: unknown, now = Date.now()): PwaImport {
     if (!valid) { skipped++; continue; }
     const categoryId = str(t.categoryId);
     transactions.push({
-      id: str(t.id) || uid(), type, amount, fee: 0, toAmount: null, origAmount: null, origCurrency: null, accountId, toAccountId: type === 'transfer' ? toAccountId : null,
+      id: str(t.id) || uid(), type, amount, fee: 0, toAmount: null, origAmount: null, origCurrency: null, baseAmount: null, accountId, toAccountId: type === 'transfer' ? toAccountId : null,
       categoryId: categoryId && categoryIds.has(categoryId) ? categoryId : null, date, time: null, note: str(t.note),
       counterparty: null, heldFor: null, photoUri: null, tags: '[]',
       recurringId: str(t.recurringId) || null, installmentId: null, debtId: null, debtRole: null, goalId: null, tripId: null, deletedAt: null,
@@ -74,7 +75,7 @@ export function convertPwaBackup(data: unknown, now = Date.now()): PwaImport {
     recurring.push({
       id: str(r.id) || uid(), name: str(r.name, 'Bill'), kind: toAccountId ? 'transfer' : 'bill', amount: Math.round(num(r.amount)),
       accountId, toAccountId, categoryId: categoryId && categoryIds.has(categoryId) ? categoryId : null,
-      frequency: FREQUENCIES.has(str(r.frequency)) ? str(r.frequency) : 'monthly', nextDue: str(r.nextDue), endDate: null, debtId: null, active: true, createdAt: now,
+      frequency: FREQUENCIES.has(str(r.frequency)) ? str(r.frequency) : 'monthly', nextDue: str(r.nextDue), anchorDay: anchorFor(FREQUENCIES.has(str(r.frequency)) ? str(r.frequency) : 'monthly', str(r.nextDue)), endDate: null, debtId: null, active: true, createdAt: now,
     });
   }
 

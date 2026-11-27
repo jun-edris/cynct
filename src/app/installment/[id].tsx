@@ -39,7 +39,7 @@ export default function InstallmentScreen() {
     if (!(p >= 0 && p <= m)) return setError('Months already paid can’t be more than the total.');
     if (!accountId) return setError('Pick the account it’s charged to.');
     const row = { id: inst?.id ?? uid(), name: name.trim(), monthlyAmount: amt, months: m, paidCount: p, accountId, categoryId: categoryId || null,
-      nextDue, note: note.trim(), createdAt: inst?.createdAt ?? nowMs() };
+      nextDue, anchorDay: Number(nextDue.slice(8, 10)), note: note.trim(), createdAt: inst?.createdAt ?? nowMs() };
     if (act(db => upsert.installment(db, row), inst ? 'Saved' : 'Installment added')) close();
   };
 

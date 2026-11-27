@@ -8,7 +8,7 @@ import {
   Button, Chip, Row, Sheet, DateField, ErrorText, Field, FormRow, IconButton, Keypad, Note, Segmented, Select, T, TimeField, Toggle, close, keypadValue,
 } from '../../components/ui';
 import { CategoryGrid, PhotoField, TagField, useAccountOptions } from '../../components/domain';
-import { advanceDue } from '../../lib/ledger';
+import { advanceDue, anchorFor } from '../../lib/ledger';
 import { hasOperator } from '../../lib/calc';
 import { inputValue, nowMs, toCentavos, toSignedCentavos, todayISO, uid } from '../../lib/money';
 import { CURRENCIES, convert, currencyInfo, money, symbolOf } from '../../lib/currency';
@@ -73,7 +73,7 @@ export default function Entry() {
     if (special) {
       const amt = existing!.type === 'adjust' ? toSignedCentavos(signedAmount) : Math.round(value * 100);
       if (!Number.isFinite(amt) || amt === 0 || (existing!.type !== 'adjust' && amt < 0)) return setError('Enter an amount.');
-      if (act(db => upsert.transaction(db, { ...existing!, amount: amt, date, time, note: note.trim(), updatedAt: nowMs() }), 'Saved changes')) close();
+      if (act(db => upsert.transaction(db, { ...existing!, amount: amt, baseAmount: amt === existing!.amount ? existing!.baseAmount : null, date, time, note: note.trim(), updatedAt: nowMs() }), 'Saved changes')) close();
       return;
     }
     const typed = Math.round(value * 100);
@@ -85,6 +85,8 @@ export default function Entry() {
       ...(existing ?? newTx({ type: kind, amount: amt, date })),
       type: kind, amount: amt, origAmount: foreign ? typed : null, origCurrency: foreign ? entryCur : null, accountId, categoryId: categoryId || null, date, time, note: note.trim(), photoUri: photo,
       tags: JSON.stringify(tags), tripId, updatedAt: nowMs(),
+      // A changed amount, account or original figure gets a fresh peso value.
+      baseAmount: existing && existing.amount === amt && existing.accountId === accountId && existing.origAmount === (foreign ? typed : null) ? existing.baseAmount : null,
     };
     const ok = act(db => {
       upsert.transaction(db, row);
@@ -93,7 +95,7 @@ export default function Entry() {
       if (isNew && repeat) {
         upsert.recurring(db, { id: uid(), name: row.note || (data.categories.find(x => x.id === row.categoryId)?.name ?? (kind === 'income' ? 'Income' : 'Expense')),
           kind: kind === 'income' ? 'income' : 'bill', amount: amt, accountId, toAccountId: null, categoryId: row.categoryId, frequency: freq,
-          nextDue: advanceDue(freq, date), endDate: null, debtId: null, active: true, createdAt: nowMs() });
+          nextDue: advanceDue(freq, date, anchorFor(freq, date)), anchorDay: anchorFor(freq, date), endDate: null, debtId: null, active: true, createdAt: nowMs() });
       }
     }, isNew ? `${kind === 'income' ? 'Income' : 'Expense'} of ${m(amt)} saved${repeat ? ', repeats' : ''}` : 'Saved changes',
     // A new salary: offer to split it right away.

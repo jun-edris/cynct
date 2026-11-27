@@ -6,7 +6,7 @@ import { usePayUpcoming } from '../../data/actions';
 import { Button, Card, Chip, DateField, ErrorText, Field, Footer, FormRow, List, Row, Screen, Section, Segmented, Select, Sheet, T, Toggle, close } from '../../components/ui';
 import { TxRow, useAccountOptions, useCategoryOptions } from '../../components/domain';
 import { remove, skipRecurring, upsert } from '../../db/repo';
-import { debtStatus, monthlyEquivalent, nextPayday } from '../../lib/ledger';
+import { anchorFor, debtStatus, monthlyEquivalent, nextPayday } from '../../lib/ledger';
 import { dayLabel, inputValue, nowMs, peso, toCentavos, todayISO, uid } from '../../lib/money';
 import { FREQ_LABEL } from '../../lib/labels';
 import { BASE, CURRENCIES, convert, currencyInfo, money, symbolOf, toBase } from '../../lib/currency';
@@ -70,7 +70,7 @@ export default function RecurringScreen() {
     if (endDate && endDate < nextDue) return setError('The end date is before the next due date.');
     const row = {
       id: r?.id ?? uid(), name: name.trim(), kind, amount: amt, accountId, toAccountId: kind === 'transfer' ? toAccountId : null,
-      categoryId: kind === 'transfer' || debtId ? null : categoryId || null, frequency, nextDue, endDate: frequency === 'once' ? null : endDate,
+      categoryId: kind === 'transfer' || debtId ? null : categoryId || null, frequency, nextDue, anchorDay: anchorFor(frequency, nextDue), endDate: frequency === 'once' ? null : endDate,
       debtId: kind === 'transfer' ? null : debtId || null, active, createdAt: r?.createdAt ?? nowMs(),
     };
     if (act(db => upsert.recurring(db, row), r ? 'Saved' : 'Planned')) close();

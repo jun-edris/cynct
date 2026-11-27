@@ -3,7 +3,7 @@ import { useData } from './DataContext';
 import { router } from 'expo-router';
 import { newTx, payInstallment, payRecurring, setRate, setSetting, softDelete, undoInstallmentPayment, undoRecurringPayment, upsert } from '../db/repo';
 import { fetchLiveRates } from '../lib/fxrates';
-import { peso, todayISO } from '../lib/money';
+import { todayISO } from '../lib/money';
 import { BASE, money } from '../lib/currency';
 import type { UpcomingItem } from '../lib/ledger';
 
@@ -16,7 +16,7 @@ export function usePayUpcoming() {
       if (!r) return;
       const debt = r.debtId ? data.debts.find(d => d.id === r.debtId) ?? null : null;
       let txId = '';
-      act(db => { txId = payRecurring(db, r, todayISO(), r.amount, debt).id; }, `${r.name}: ${peso(r.amount)} recorded`,
+      act(db => { txId = payRecurring(db, r, todayISO(), r.amount, debt).id; }, `${r.name}: ${money(r.amount, data.accounts.find(a => a.id === r.accountId)?.currency)} recorded`,
         { label: 'Undo', run: () => act(db => undoRecurringPayment(db, r, txId)) });
     } else if (item.source === 'installment') {
       const i = data.installments.find(x => x.id === item.id);

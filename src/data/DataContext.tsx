@@ -1,10 +1,10 @@
-import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
-import { loadAll, type AllData, type DB } from '../db/repo';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { freezeBaseAmounts, loadAll, type AllData, type DB } from '../db/repo';
 import { accountBalances, goalFund } from '../lib/ledger';
 import type { ParseCategory } from '../lib/parse';
 import type { Account, Category, Transaction } from '../db/schema';
 import { setMasked } from '../lib/money';
-import { BASE, inBase, missingRates, money, toBase, type RateMap } from '../lib/currency';
+import { BASE, inBase, missingRates, money, snapshotBase, toBase, type RateMap } from '../lib/currency';
 import { haptic } from '../components/motion';
 
 export interface ToastAction { label: string; run: () => void }
@@ -90,6 +90,21 @@ export function DataProvider({ db, children }: { db: DB; children: React.ReactNo
       reload, act, toast, toastState, dismissToast,
     };
   }, [db, data, reload, act, toast, toastState, dismissToast]);
+
+  // Fix the peso value of foreign-currency entries the first time they're seen with a rate, so last
+  // month's dollars don't change every time the rate does.
+  const { rates, curOf } = value;
+  useEffect(() => {
+    const rows: [string, number][] = [];
+    for (const t of [...data.transactions, ...data.deleted]) {
+      if (t.baseAmount != null || !t.accountId) continue;
+      const v = snapshotBase(t, curOf(t.accountId), t.toAccountId ? curOf(t.toAccountId) : null, rates);
+      if (v != null) rows.push([t.id, v]);
+    }
+    if (!rows.length) return;
+    const id = setTimeout(() => { try { freezeBaseAmounts(db, rows); reload(); } catch (e) { console.warn('freeze', e); } }, 0);
+    return () => clearTimeout(id);
+  }, [db, data, rates, curOf, reload]);
 
   return <DataCtx.Provider value={value}>{children}</DataCtx.Provider>;
 }

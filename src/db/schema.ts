@@ -44,6 +44,8 @@ export const transactions = sqliteTable('transactions', {
   // Paid in another currency than the account's: the original figure. amount holds what the account was charged.
   origAmount: integer('orig_amount'),
   origCurrency: text('orig_currency'),
+  // Foreign-currency entries: their value in pesos when they happened. Null until first seen with a rate.
+  baseAmount: integer('base_amount'),
   accountId: text('account_id'), // null only for goal interest and off-wallet debt entries
   toAccountId: text('to_account_id'),
   categoryId: text('category_id'),
@@ -93,6 +95,7 @@ export const recurring = sqliteTable('recurring', {
   categoryId: text('category_id'),
   frequency: text('frequency').notNull(), // once | weekly | monthly | semimonthly | quarterly | yearly
   nextDue: text('next_due').notNull(),
+  anchorDay: integer('anchor_day'), // day of the month it's due; keeps the 31st from sliding to the 28th
   endDate: text('end_date'),
   debtId: text('debt_id'), // paying this records a debt payment
   active: integer('active', { mode: 'boolean' }).notNull().default(true),
@@ -108,6 +111,7 @@ export const installments = sqliteTable('installments', {
   accountId: text('account_id').notNull(),
   categoryId: text('category_id'),
   nextDue: text('next_due').notNull(),
+  anchorDay: integer('anchor_day'), // day of the month it's due; keeps the 31st from sliding to the 28th
   note: text('note').notNull().default(''),
   createdAt: integer('created_at').notNull(),
 });

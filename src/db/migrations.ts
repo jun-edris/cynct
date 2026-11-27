@@ -304,6 +304,16 @@ export const MIGRATIONS: string[] = [
   );
   CREATE INDEX captured_status ON captured(status, posted_at);
   `,
+  // v6: what a foreign-currency entry was worth in pesos when it happened (so old entries stop
+  // changing with today's rate), and the day of the month a plan or installment is due (so a bill
+  // due on the 31st doesn't slide to the 28th after February).
+  `
+  ALTER TABLE transactions ADD COLUMN base_amount INTEGER;
+  ALTER TABLE recurring ADD COLUMN anchor_day INTEGER CHECK (anchor_day IS NULL OR anchor_day BETWEEN 1 AND 31);
+  ALTER TABLE installments ADD COLUMN anchor_day INTEGER CHECK (anchor_day IS NULL OR anchor_day BETWEEN 1 AND 31);
+  UPDATE recurring SET anchor_day = CAST(substr(next_due, 9, 2) AS INTEGER) WHERE frequency IN ('monthly', 'quarterly', 'yearly');
+  UPDATE installments SET anchor_day = CAST(substr(next_due, 9, 2) AS INTEGER);
+  `,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

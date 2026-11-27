@@ -99,7 +99,22 @@ export const textToRate = (s: string): number => {
   return Number.isFinite(n) && n > 0 ? Math.round(n * RATE_SCALE) : NaN;
 };
 
-interface TxConv { accountId: string | null; toAccountId: string | null; amount: number; fee?: number; toAmount?: number | null; type: string }
+interface TxConv { accountId: string | null; toAccountId: string | null; amount: number; fee?: number; toAmount?: number | null; type: string; baseAmount?: number | null }
+
+/**
+ * What a foreign-currency entry is worth in pesos, fixed once so old entries stop moving with today's rate.
+ * Uses the exact peso side when the entry has one (paid in pesos from a dollar account, or a transfer that
+ * landed in pesos); otherwise the rate at the time it's first seen. Null for peso accounts or with no rate.
+ */
+export function snapshotBase(
+  t: { type: string; amount: number; toAmount?: number | null; origAmount?: number | null; origCurrency?: string | null },
+  from: string, to: string | null, rates: RateMap,
+): number | null {
+  if (from === BASE) return null;
+  if (t.origCurrency === BASE && t.origAmount) return t.amount < 0 ? -t.origAmount : t.origAmount;
+  if (t.type === 'transfer' && to === BASE && t.toAmount) return t.toAmount;
+  return rates.has(from) ? toBase(t.amount, from, rates) : null;
+}
 
 /**
  * Copies of transactions with amounts in pesos, for totals that mix accounts: spending, budgets, goals, debts, forecasts.
@@ -113,9 +128,17 @@ export function inBase<T extends TxConv>(txs: T[], accCurrency: Map<string, stri
     const from = t.accountId ? accCurrency.get(t.accountId) ?? BASE : BASE;
     const to = t.toAccountId ? accCurrency.get(t.toAccountId) ?? BASE : BASE;
     if (from === BASE && (t.type !== 'transfer' || to === BASE)) return t;
-    const amount = from === BASE ? t.amount : toBase(t.amount, from, rates);
-    const fee = from === BASE ? t.fee ?? 0 : toBase(t.fee ?? 0, from, rates);
-    const toAmount = t.type === 'transfer' ? (to === BASE ? t.toAmount ?? t.amount : toBase(t.toAmount ?? t.amount, to, rates)) : t.toAmount;
+    // A frozen peso value wins over today's rate; the fee follows the same rate.
+    const frozen = from !== BASE && t.baseAmount != null && t.amount !== 0;
+    const amount = from === BASE ? t.amount : frozen ? t.baseAmount! : toBase(t.amount, from, rates);
+    const fee = from === BASE ? t.fee ?? 0 : frozen ? Math.round((t.fee ?? 0) * t.baseAmount! / t.amount) : toBase(t.fee ?? 0, from, rates);
+    let toAmount = t.toAmount;
+    if (t.type === 'transfer') {
+      if (to === BASE) toAmount = t.toAmount ?? t.amount;
+      else if (from === BASE) toAmount = t.amount; // pesos that left are what arrived, in peso terms
+      else if (to === from) toAmount = frozen ? t.baseAmount! : toBase(t.toAmount ?? t.amount, to, rates);
+      else toAmount = toBase(t.toAmount ?? t.amount, to, rates);
+    }
     return { ...t, amount, fee, toAmount };
   });
 }

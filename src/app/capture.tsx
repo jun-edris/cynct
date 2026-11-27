@@ -6,7 +6,8 @@ import Capture from '../../modules/cynct-capture';
 import { useData } from '../data/DataContext';
 import { radius, useTheme } from '../theme';
 import { Button, Card, Chip, Field, Icon, IconBubble, List, Note, Row, Screen, Section, Sheet, T, Toggle, formatTime } from '../components/ui';
-import { addCaptured, setCaptured, setSetting } from '../db/repo';
+import { addCaptured, payRecurring, setCaptured, setSetting } from '../db/repo';
+import { findRecorded, matchPlan } from '../lib/match';
 import { APPS, parseCapture, type CaptureRow, type Draft } from '../lib/capture';
 import { alreadyKnown, parseMayaScreen, screenToCapture } from '../lib/screenshot';
 import { ocrSupported, readText } from '../data/ocr';
@@ -19,8 +20,22 @@ const when = (ms: number) => { const d = new Date(ms); return `${dayLabel(todayI
 
 function DraftCard({ d, prefs }: { d: Draft; prefs: CapturePrefs }) {
   const { c } = useTheme();
-  const { data, act, rates, cats } = useData();
+  const { data, act, rates, cats, curOf, fmt } = useData();
   const r = resolveDraft(d, prefs, data.accounts, cats, rates);
+  // Already in Cynct (e.g. Received was tapped first)? Or does it settle a planned payment?
+  const dup = r.tx ? findRecorded(r.tx, data.transactions) : null;
+  const planRow = (() => {
+    if (dup || !r.tx) return null;
+    const plans = data.recurring.map(x => ({ ...x, currency: curOf(x.accountId) }));
+    const m = matchPlan({ kind: d.kind, amount: d.amount, currency: d.currency, postedAt: d.postedAt, accountId: r.accountId }, plans, rates);
+    return m ? data.recurring.find(x => x.id === m.id) ?? null : null;
+  })();
+  const settle = () => {
+    if (!planRow || !r.tx) return;
+    const debt = planRow.debtId ? data.debts.find(x => x.id === planRow.debtId) ?? null : null;
+    act(db => { const t = payRecurring(db, planRow, r.tx!.date, r.tx!.amount, debt); setCaptured(db, d.ids, 'added', t.id); },
+      `${planRow.name}: ${fmt(r.tx.amount, planRow.accountId)} ${planRow.kind === 'income' ? 'received' : 'paid'}`);
+  };
   const acc = (id: string | null) => data.accounts.find(a => a.id === id)?.name ?? null;
   const color = d.kind === 'income' ? c.income : d.kind === 'transfer' ? c.info : c.spend;
   const icon = d.kind === 'income' ? 'arrow-down' : d.kind === 'transfer' ? 'swap-horizontal' : 'arrow-up';
@@ -54,6 +69,17 @@ function DraftCard({ d, prefs }: { d: Draft; prefs: CapturePrefs }) {
         <T v="num" color={d.kind === 'income' ? c.income : c.ink}>{`${d.kind === 'income' ? '+' : d.kind === 'expense' ? '−' : ''}${money(d.amount, d.currency)}`}</T>
       </View>
       <T v="small">{when(d.postedAt)}</T>
+      {dup ? (
+        <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-start', backgroundColor: c.infoSoft, borderRadius: radius.md, padding: 10 }}>
+          <Icon name="content-duplicate" size={18} color={c.info} />
+          <T v="small" color={c.inkSoft} style={{ flex: 1 }}>{`Already in Cynct: ${dup.note || 'an entry'} on ${dayLabel(dup.date)}, same amount. Dismiss this one unless it really happened twice.`}</T>
+        </View>
+      ) : planRow ? (
+        <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-start', backgroundColor: c.incomeSoft, borderRadius: radius.md, padding: 10 }}>
+          <Icon name="calendar-check" size={18} color={c.income} />
+          <T v="small" color={c.inkSoft} style={{ flex: 1 }}>{`Looks like ${planRow.name}, due ${dayLabel(planRow.nextDue)}. Marking it ${planRow.kind === 'income' ? 'received' : 'paid'} records this amount and moves the plan to its next date.`}</T>
+        </View>
+      ) : null}
       {d.check || r.missing ? (
         <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-start', backgroundColor: c.warnSoft, borderRadius: radius.md, padding: 10 }}>
           <Icon name="alert-circle-outline" size={18} color={c.warn} />
@@ -61,10 +87,12 @@ function DraftCard({ d, prefs }: { d: Draft; prefs: CapturePrefs }) {
         </View>
       ) : null}
       <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-        <Button small icon="check" label="Add" disabled={!r.tx} onPress={() => { if (r.tx) act(db => addDraft(db, d, r.tx!), `${d.kind === 'transfer' ? 'Transfer' : d.kind === 'income' ? 'Income' : 'Expense'} added`); }} style={{ flexGrow: 1 }} />
+        {dup ? <Button small icon="close" label="Dismiss" onPress={() => act(db => setCaptured(db, d.ids, 'dismissed'), 'Dismissed')} style={{ flexGrow: 1 }} />
+          : planRow ? <Button small icon="calendar-check" label={planRow.kind === 'income' ? 'Mark received' : 'Mark paid'} onPress={settle} style={{ flexGrow: 1 }} /> : null}
+        <Button small variant={dup || planRow ? 'secondary' : 'primary'} icon="check" label={dup || planRow ? 'Add as new' : 'Add'} disabled={!r.tx} onPress={() => { if (r.tx) act(db => addDraft(db, d, r.tx!), `${d.kind === 'transfer' ? 'Transfer' : d.kind === 'income' ? 'Income' : 'Expense'} added`); }} style={{ flexGrow: 1 }} />
         <Button small variant="secondary" icon="pencil-outline" label="Edit" onPress={() => edit()} style={{ flexGrow: 1 }} />
         {d.kind === 'income' && d.check ? <Button small variant="secondary" icon="swap-horizontal" label="Transfer" onPress={() => edit(true)} /> : null}
-        <Button small variant="ghost" icon="close" label="Dismiss" onPress={() => act(db => setCaptured(db, d.ids, 'dismissed'), 'Dismissed')} />
+        {!dup ? <Button small variant="ghost" icon="close" label="Dismiss" onPress={() => act(db => setCaptured(db, d.ids, 'dismissed'), 'Dismissed')} /> : null}
       </View>
     </Card>
   );

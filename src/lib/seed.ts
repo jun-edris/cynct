@@ -1,6 +1,6 @@
 // Default data. Pure: returns rows; the repository writes them.
 import { addMonths, todayISO, uid } from './money';
-import { nextPayday } from './ledger';
+import { anchorFor, nextPayday } from './ledger';
 import type { Account, Budget, Category, Goal, Recurring } from '../db/schema';
 
 type Cat = Omit<Category, 'archived' | 'sort' | 'keywords'> & { keywords: string };
@@ -84,7 +84,7 @@ export function mySetup(today = todayISO()): SeedRows {
     return d >= today ? d : addMonths(d, 1);
   };
   const rec = (name: string, kind: string, pesos: number, accountId: string, frequency: string, nextDue: string, categoryId: string | null, toAccountId: string | null = null): Recurring =>
-    ({ id: uid(), name, kind, amount: pesos * 100, accountId, toAccountId, categoryId, frequency, nextDue, endDate: null, debtId: null, active: true, createdAt: now });
+    ({ id: uid(), name, kind, amount: pesos * 100, accountId, toAccountId, categoryId, frequency, nextDue, anchorDay: anchorFor(frequency, nextDue), endDate: null, debtId: null, active: true, createdAt: now });
 
   const payday = nextPayday(today);
   const recurring = [

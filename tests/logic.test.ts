@@ -224,7 +224,8 @@ describe('build 1 rules', () => {
         { id: 'wi', name: 'Wise', type: 'bank', opening: 1000000, archived: false, dueDay: null },
         { id: 'cc', name: 'BPI Card', type: 'credit', opening: -300000, archived: false, dueDay: 25 },
       ],
-      balances: new Map([['wi', 1000000], ['cc', -300000]]),
+      // Real balances already include the dentist entry dated the 20th; the forecast must not take it twice.
+      balances: new Map([['wi', 990000], ['cc', -300000]]),
       txs: [{ ...base, id: 'f', type: 'expense', amount: 10000, accountId: 'wi', date: '2026-10-20', note: 'Dentist' }],
       recurring: [{ id: 'r', name: 'Salary', kind: 'income', amount: 5000000, frequency: 'semimonthly', nextDue: '2026-10-30', endDate: null, active: true }],
       installments: [],

@@ -7,7 +7,7 @@ import {
   type Account, type Category, type Transaction, type Budget, type Recurring, type Installment, type Debt, type Goal, type PaymentMethod,
   type Tag, type Trip, type Note, type Rate, type Template, type Invoice, type Captured,
 } from './schema';
-import { advanceDue } from '../lib/ledger';
+import { advanceDue, onDay } from '../lib/ledger';
 import { addMonths, todayISO, uid } from '../lib/money';
 import { DEFAULT_CATEGORIES, type SeedRows } from '../lib/seed';
 import type { PwaImport } from '../lib/importPwa';
@@ -129,6 +129,11 @@ export function addCaptured(db: DB, rows: { id: string; app: string; title: stri
   return added;
 }
 
+/** Records each foreign-currency entry's peso value at the time (see snapshotBase). */
+export function freezeBaseAmounts(db: DB, rows: [string, number][]) {
+  db.transaction(tx => { for (const [id, v] of rows) tx.update(transactions).set({ baseAmount: v }).where(eq(transactions.id, id)).run(); });
+}
+
 export function setCaptured(db: DB, ids: string[], status: 'new' | 'added' | 'dismissed', txId: string | null = null) {
   for (const id of ids) db.update(captured).set({ status, txId }).where(eq(captured.id, id)).run();
 }
@@ -219,7 +224,7 @@ export function saveAccount(db: DB, account: Account, correction: number) {
 export function newTx(p: Partial<Transaction> & Pick<Transaction, 'type' | 'amount' | 'date'>): Transaction {
   const now = Date.now();
   return {
-    id: uid(), fee: 0, toAmount: null, origAmount: null, origCurrency: null, accountId: null, toAccountId: null, categoryId: null, time: null, note: '', counterparty: null, heldFor: null, photoUri: null,
+    id: uid(), fee: 0, toAmount: null, origAmount: null, origCurrency: null, baseAmount: null, accountId: null, toAccountId: null, categoryId: null, time: null, note: '', counterparty: null, heldFor: null, photoUri: null,
     tags: '[]', recurringId: null, installmentId: null, debtId: null, debtRole: null, goalId: null, tripId: null, deletedAt: null,
     createdAt: now, updatedAt: now, ...p,
   };
@@ -236,7 +241,7 @@ export function payRecurring(db: DB, r: Recurring, date: string, amount = r.amou
     t = newTx({ type, amount, accountId: r.accountId, toAccountId: type === 'transfer' ? r.toAccountId : null,
       categoryId: type === 'transfer' ? null : r.categoryId, date, note: r.name, recurringId: r.id });
   }
-  const next = advanceDue(r.frequency, r.nextDue);
+  const next = advanceDue(r.frequency, r.nextDue, r.anchorDay);
   const stillActive = r.frequency !== 'once' && !(r.endDate && next > r.endDate);
   db.transaction(tx => {
     upsertIn(asDb(tx), transactions, t);
@@ -246,7 +251,7 @@ export function payRecurring(db: DB, r: Recurring, date: string, amount = r.amou
 }
 
 export function skipRecurring(db: DB, r: Recurring) {
-  const next = advanceDue(r.frequency, r.nextDue);
+  const next = advanceDue(r.frequency, r.nextDue, r.anchorDay);
   db.update(recurring).set({ nextDue: next, active: r.frequency !== 'once' && !(r.endDate && next > r.endDate) }).where(eq(recurring.id, r.id)).run();
 }
 
@@ -263,7 +268,7 @@ export function payInstallment(db: DB, i: Installment, date: string): Transactio
     note: `${i.name} ${i.paidCount + 1}/${i.months}`, installmentId: i.id });
   db.transaction(tx => {
     upsertIn(asDb(tx), transactions, t);
-    tx.update(installments).set({ paidCount: i.paidCount + 1, nextDue: addMonths(i.nextDue, 1) }).where(eq(installments.id, i.id)).run();
+    tx.update(installments).set({ paidCount: i.paidCount + 1, nextDue: onDay(addMonths(i.nextDue, 1), i.anchorDay) }).where(eq(installments.id, i.id)).run();
   });
   return t;
 }
@@ -382,7 +387,7 @@ export function applyPwaImport(db: DB, p: PwaImport) {
 
 // Kept from when the app was called Bahay so every existing backup still restores.
 export const BACKUP_APP = 'bahay-native';
-export const BACKUP_VERSION = 5;
+export const BACKUP_VERSION = 6;
 
 export function exportAll(db: DB) {
   const d = loadAll(db);

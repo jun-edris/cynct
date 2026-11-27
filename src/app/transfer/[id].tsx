@@ -62,6 +62,7 @@ export default function TransferScreen() {
       accountId: type === 'ext_in' ? toAcc : fromAcc, toAccountId: type === 'transfer' ? toAcc : null, toAmount: cross ? recAmt : null,
       counterparty: type === 'transfer' ? null : counterparty.trim(), heldFor: type === 'ext_in' ? heldFor.trim() || null : null,
       date, time, note: note.trim(), photoUri: photo, categoryId: null, updatedAt: nowMs(),
+      baseAmount: t && t.amount === amt && t.accountId === (type === 'ext_in' ? toAcc : fromAcc) && (t.toAmount ?? null) === (cross ? recAmt : null) ? t.baseAmount : null,
     };
     if (act(db => { upsert.transaction(db, row); if (isNew && pre.capture) setCaptured(db, pre.capture.split(','), 'added', row.id); }, isNew ? `${type === 'transfer' ? 'Transfer' : type === 'ext_out' ? 'Sent' : 'Received'} ${m(amt)}` : 'Saved changes')) close();
   };

@@ -120,7 +120,7 @@ describe.skipIf(!hasSqlite)('database', () => {
   it('installments stop at the last month', () => {
     const { db } = seeded();
     const acc = loadAll(db).accounts[0];
-    upsert.installment(db, { id: 'i1', name: 'Phone', monthlyAmount: 250000, months: 2, paidCount: 0, accountId: acc.id, categoryId: 'other', nextDue: today, note: '', createdAt: 1 });
+    upsert.installment(db, { id: 'i1', name: 'Phone', monthlyAmount: 250000, months: 2, paidCount: 0, accountId: acc.id, categoryId: 'other', nextDue: today, anchorDay: null, note: '', createdAt: 1 });
     payInstallment(db, loadAll(db).installments[0], today);
     payInstallment(db, loadAll(db).installments[0], today);
     const i = loadAll(db).installments[0];

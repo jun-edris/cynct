@@ -246,12 +246,27 @@ export function budgetStatus(b: BudgetLite, txs: TxLite[], cats: CategoryLite[],
 }
 
 // ---------- recurring and planned payments ----------
-export function advanceDue(frequency: string, due: string): string {
+/** The same date with its day set to `day`, clamped to the month's length (31 → 30 in April, 28 or 29 in February). */
+export function onDay(iso: string, day: number | null | undefined): string {
+  if (!day) return iso;
+  const last = Number(lastDayOfMonth(iso).slice(8, 10));
+  return `${iso.slice(0, 8)}${String(Math.min(day, last)).padStart(2, '0')}`;
+}
+
+/** The day of the month a plan is anchored to: its own due day for monthly, quarterly and yearly plans. */
+export const anchorFor = (frequency: string, due: string): number | null =>
+  frequency === 'monthly' || frequency === 'quarterly' || frequency === 'yearly' ? Number(due.slice(8, 10)) : null;
+
+/**
+ * The next due date. Monthly-style plans keep their anchor day, so a bill due on the 31st goes
+ * Jan 31 → Feb 28 → Mar 31, instead of sticking to the 28th after February.
+ */
+export function advanceDue(frequency: string, due: string, anchorDay?: number | null): string {
   switch (frequency) {
     case 'once': return due;
     case 'weekly': return addDays(due, 7);
-    case 'quarterly': return addMonths(due, 3);
-    case 'yearly': return addMonths(due, 12);
+    case 'quarterly': return onDay(addMonths(due, 3), anchorDay);
+    case 'yearly': return onDay(addMonths(due, 12), anchorDay);
     case 'semimonthly': {
       const day = Number(due.slice(8, 10));
       const end = Number(lastDayOfMonth(due).slice(8, 10));
@@ -260,7 +275,7 @@ export function advanceDue(frequency: string, due: string): string {
       if (day < second) return `${due.slice(0, 7)}-${String(second).padStart(2, '0')}`;
       return `${addMonths(`${due.slice(0, 7)}-01`, 1).slice(0, 7)}-15`;
     }
-    default: return addMonths(due, 1);
+    default: return onDay(addMonths(due, 1), anchorDay);
   }
 }
 
@@ -335,8 +350,8 @@ export interface UpcomingItem {
 }
 
 export function upcoming(
-  rec: { id: string; name: string; kind: string; amount: number; frequency: string; nextDue: string; endDate: string | null; active: boolean }[],
-  inst: { id: string; name: string; monthlyAmount: number; months: number; paidCount: number; nextDue: string }[],
+  rec: { id: string; name: string; kind: string; amount: number; frequency: string; nextDue: string; endDate: string | null; active: boolean; anchorDay?: number | null }[],
+  inst: { id: string; name: string; monthlyAmount: number; months: number; paidCount: number; nextDue: string; anchorDay?: number | null }[],
   today: string, days: number,
 ): UpcomingItem[] {
   const until = addDays(today, days);
@@ -349,14 +364,14 @@ export function upcoming(
       out.push({ key: `${r.id}:${d}`, source: 'recurring', id: r.id, name: r.name, date: d, amount: r.amount, expected: true,
         direction: r.kind === 'income' ? 'in' : r.kind === 'transfer' ? 'move' : 'out' });
       if (r.frequency === 'once') break;
-      d = advanceDue(r.frequency, d);
+      d = advanceDue(r.frequency, d, r.anchorDay);
     }
   }
   for (const i of inst) {
     let d = i.nextDue;
     for (let k = i.paidCount; k < i.months && d <= until; k++) {
       out.push({ key: `${i.id}:${d}`, source: 'installment', id: i.id, name: `${i.name} (${k + 1}/${i.months})`, date: d, amount: i.monthlyAmount, direction: 'out', expected: true });
-      d = addMonths(d, 1);
+      d = onDay(addMonths(d, 1), i.anchorDay);
     }
   }
   return out.sort((a, b) => a.date.localeCompare(b.date) || a.name.localeCompare(b.name));
@@ -409,8 +424,14 @@ export function forecast(input: ForecastInput, today: string, days: number) {
   items.sort((a, b) => a.date.localeCompare(b.date));
 
   // Starting point: money you can spend now (assets only; cards and loans are what you owe).
-  const start = input.accounts.filter(a => !a.archived && !isLiability(a.type))
-    .reduce((s, a) => s + (input.balances.get(a.id) ?? 0), 0);
+  // Balances already include entries dated in the future; take them back out, since the timeline adds them on their day.
+  const assets = new Set(input.accounts.filter(a => !a.archived && !isLiability(a.type)).map(a => a.id));
+  let future = 0;
+  for (const t of input.txs) {
+    if (t.deletedAt || t.date <= today) continue;
+    for (const [id, v] of txDeltas(t)) if (assets.has(id)) future += v;
+  }
+  const start = [...assets].reduce((s, id) => s + (input.balances.get(id) ?? 0), 0) - future;
   let actualIn = 0, actualOut = 0, expectedIn = 0, expectedOut = 0;
   for (const i of items) {
     if (i.direction === 'in') { if (i.expected) expectedIn += i.amount; else actualIn += i.amount; }
