@@ -7,6 +7,7 @@ import { useData } from './DataContext';
 import { addCaptured, newTx, pruneCaptured, setCaptured, upsert, type DB } from '../db/repo';
 import { APPS, accountFor, appOf, buildDrafts, parseCapture, type Draft, type Parsed } from '../lib/capture';
 import { guessCategory } from '../lib/receipt';
+import { recall, type CatMemory } from '../lib/learn';
 import { convert, type RateMap } from '../lib/currency';
 import { todayISO } from '../lib/money';
 import type { Account, Captured, Category, Transaction } from '../db/schema';
@@ -73,7 +74,7 @@ export interface Resolved {
 }
 
 /** Works out accounts, currency and category for a draft. Returns a transaction when nothing needs choosing. */
-export function resolveDraft(d: Draft, prefs: CapturePrefs, accounts: Account[], cats: Category[], rates: RateMap): Resolved {
+export function resolveDraft(d: Draft, prefs: CapturePrefs, accounts: Account[], cats: Category[], rates: RateMap, memory?: CatMemory): Resolved {
   const cur = (id: string | null) => accounts.find(a => a.id === id)?.currency ?? 'PHP';
   const base = { date: dateOf(d.postedAt), time: timeOf(d.postedAt), note: d.note };
   if (d.kind === 'transfer') {
@@ -89,8 +90,11 @@ export function resolveDraft(d: Draft, prefs: CapturePrefs, accounts: Account[],
     return { tx: newTx({ type: 'transfer', amount, toAmount, accountId: fromId, toAccountId: toId, ...base }), missing: null, ...out };
   }
   const accountId = accountFor(d.app, d.currency, prefs.links, accounts);
-  const categoryId = guessCategory({ total: d.amount, date: null, merchant: d.who, amounts: [], lines: [d.who ?? '', d.via ?? ''] },
-    cats.filter(c => c.kind === (d.kind === 'income' ? 'income' : 'expense')).map(c => ({ ...c, kind: 'expense', keywords: safeKeywords(c.keywords) })));
+  const kindCats = cats.filter(c => c.kind === (d.kind === 'income' ? 'income' : 'expense'));
+  // What you filed this payee under before wins over the keyword guess.
+  const categoryId = recall(memory, d.who ?? d.note, new Set(kindCats.filter(c => !c.archived).map(c => c.id)))
+    ?? guessCategory({ total: d.amount, date: null, merchant: d.who, amounts: [], lines: [d.who ?? '', d.via ?? ''] },
+      kindCats.map(c => ({ ...c, kind: 'expense', keywords: safeKeywords(c.keywords) })));
   const out = { fromId: null, toId: null, accountId, categoryId };
   if (!accountId) return { tx: null, missing: 'Link this app to an account', ...out };
   const ac = cur(accountId);

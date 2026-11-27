@@ -118,7 +118,8 @@ function Reminders() {
 }
 
 // Screens whose top is the night gradient get light status bar icons.
-const NIGHT_TOP = new Set(['/', '/saved', '/wallet', '/history', '/plan']);
+const NIGHT_TOP = new Set(['/', '/saved', '/wallet', '/history', '/plan', '/goals', '/budgets', '/tools/emergency', '/settings']);
+const nightTop = (p: string) => NIGHT_TOP.has(p) || p.startsWith('/goal/');
 
 function Shell() {
   const { c, dark } = useTheme();
@@ -144,7 +145,7 @@ function Shell() {
 
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
-            <StatusBar style={dark || NIGHT_TOP.has(pathname) ? 'light' : 'dark'} />
+            <StatusBar style={dark || nightTop(pathname) ? 'light' : 'dark'} />
       <AutoRates />
       <Reminders />
       <CaptureSync />
@@ -156,6 +157,7 @@ function Shell() {
           <Stack.Screen name="transfer/[id]" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="quick" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="saved" options={{ animation: 'fade', gestureEnabled: false }} />
+          <Stack.Screen name="pay-planned" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
         </Stack>
         <Toast />
       </LockGate>

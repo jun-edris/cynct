@@ -6,11 +6,11 @@ import { router } from 'expo-router';
 import { useData, safeJson } from '../../data/DataContext';
 import { isPayable, usePayUpcoming } from '../../data/actions';
 import { fonts, useTheme } from '../../theme';
-import { Bar, Block, Button, Card, Empty, Icon, IconBubble, List, Screen, Section, T } from '../../components/ui';
+import { Bar, Button, Card, Empty, Icon, IconBubble, List, Screen, Section, T } from '../../components/ui';
 import { readLayout, type HomeSection } from '../../lib/home';
 import { draftsFrom, readCapture } from '../../data/capture';
-import { Hills, TxRow, UpcomingRow } from '../../components/domain';
-import { Glass, NightGradient, OnNightPill, SentiBadge, SheetUp, useCountUp, useReduceMotion } from '../../components/k';
+import { TxRow, UpcomingRow } from '../../components/domain';
+import { CoinJar, Glass, NightGradient, OnNightPill, SentiBadge, SheetUp, useCountUp, useReduceMotion } from '../../components/k';
 import { lastMonths, monthFlow } from '../../lib/flow';
 import { setSetting } from '../../db/repo';
 import { compactPeso, peso, todayISO, parseISO, nowMs } from '../../lib/money';
@@ -76,7 +76,7 @@ function MonthBars({ months }: { months: { key: string; income: number; expense:
 }
 
 export default function Home() {
-  const { c, dark } = useTheme();
+  const { c } = useTheme();
   const { data, act, baseBalances, rtx, cats, goalFunds, plannedBase, missing } = useData();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -145,19 +145,17 @@ export default function Home() {
         const g = goalProgress({ ...goal, annualRate: goal.annualRate / 10_000, accountIds: safeJson<string[]>(goal.accountIds, []) }, baseBalances, rtx, today);
         return (
           <Section title="Goal" action="All goals" onAction={() => router.push('/goals')}>
-            <Block tone="navy" style={{ paddingBottom: 0, paddingHorizontal: 0 }} onPress={() => router.push(`/goal/${goal.id}`)}>
-              <View style={{ paddingHorizontal: 20 }}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                  <T v="semi" color={c.navyMuted}>{goal.name}</T>
-                  <T v="semi" color={c.mango}>{Math.round(g.pct * 1000) / 10}%</T>
+            <Pressable onPress={() => router.push(`/goal/${goal.id}`)} accessibilityRole="button" accessibilityLabel={`${goal.name}, ${Math.round(g.pct * 100)}% saved`}>
+              <NightGradient radius={22} style={{ padding: 18, flexDirection: 'row', alignItems: 'flex-end', gap: 12 }}>
+                <View style={{ flex: 1 }}>
+                  <T v="semi" color="#E7E0FF">{goal.name}</T>
+                  <T v="display" color="#FFFFFF" style={{ marginTop: 4, fontSize: 32, lineHeight: 38 }} numberOfLines={1}>{peso(g.saved, { cents: false })}</T>
+                  <T v="small" color="#E7E0FF">{`of ${compactPeso(goal.target)} · ${Math.round(g.pct * 1000) / 10}%`}</T>
+                  <T v="small" color="#E7E0FF">{`${leftLabel(g.months)} · needs ${compactPeso(g.needed)}${g.months < 1 ? '' : '/mo'}`}</T>
                 </View>
-                <T v="display" color={c.navyText} style={{ marginTop: 4, fontSize: 36, lineHeight: 42 }}>{peso(g.saved, { cents: false })}</T>
-                <T v="medium" color={c.navyMuted}>of {compactPeso(goal.target)} · {leftLabel(g.months)} · needs {compactPeso(g.needed)}{g.months < 1 ? '' : '/mo'}</T>
-              </View>
-              <View style={{ marginTop: 10 }}>
-                <Hills pct={g.pct} label={compactPeso(goal.target)} fill={c.mango} back={dark ? '#24365C' : '#16233F'} mid={dark ? '#2C4170' : '#1F3155'} ink={c.navyText} house={c.mango} />
-              </View>
-            </Block>
+                <CoinJar pct={g.pct} width={104} />
+              </NightGradient>
+            </Pressable>
           </Section>
         );
       })() : (

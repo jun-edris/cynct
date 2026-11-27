@@ -9,9 +9,11 @@ import {
 } from '../../components/ui';
 import { CategoryGrid, PhotoField, TagField, useAccountOptions } from '../../components/domain';
 import { GradButton, NightGradient } from '../../components/k';
+import { learn, recall, type CatMemory } from '../../lib/learn';
+import { budgetCrossings, crossingText } from '../../lib/budgetAlert';
 import { advanceDue, anchorFor } from '../../lib/ledger';
 import { hasOperator } from '../../lib/calc';
-import { dayLabel, inputValue, nowMs, toCentavos, toSignedCentavos, todayISO, uid } from '../../lib/money';
+import { dayLabel, inputValue, nowMs, peso, toCentavos, toSignedCentavos, todayISO, uid } from '../../lib/money';
 import { CURRENCIES, convert, currencyInfo, money, symbolOf } from '../../lib/currency';
 import { newTx, restore, setCaptured, setSetting, softDelete, upsert } from '../../db/repo';
 import type { Transaction } from '../../db/schema';
@@ -37,7 +39,7 @@ export default function Entry() {
   const params = useLocalSearchParams<{ id: string; type?: string; amount?: string; currency?: string; note?: string; date?: string; time?: string; photo?: string; category?: string; account?: string; capture?: string }>();
   const { c } = useTheme();
   const insets = useSafeAreaInsets();
-  const { data, act, curOf, rates } = useData();
+  const { data, act, curOf, rates, rtx, cats } = useData();
   const existing = data.transactions.find(t => t.id === params.id) ?? data.deleted.find(t => t.id === params.id);
   const isNew = !existing;
   const special = existing && existing.type !== 'expense' && existing.type !== 'income';
@@ -98,8 +100,15 @@ export default function Entry() {
       // A changed amount, account or original figure gets a fresh peso value.
       baseAmount: existing && existing.amount === amt && existing.accountId === accountId && existing.origAmount === (foreign ? typed : null) ? existing.baseAmount : null,
     };
+    // Budget alert: does this new spend tip a budget over 80% or its limit?
+    const crossed = isNew && kind === 'expense'
+      ? budgetCrossings(data.budgets, rtx, cats, { categoryId: row.categoryId, amount: convert(amt, cur, 'PHP', rates) ?? amt, date }, todayISO())[0] : undefined;
+    const memory = data.settings.catMemory as CatMemory | undefined;
+    const learned = learn(memory, row.counterparty || row.note, row.categoryId);
     const ok = act(db => {
       upsert.transaction(db, row);
+      // Remember this payee's category for next time (captured payments use it first).
+      if (learned !== memory && Object.keys(learned).length) setSetting(db, 'catMemory', learned);
       if (isNew) setSetting(db, 'lastUsedAccount', accountId);
       if (isNew && params.capture) setCaptured(db, params.capture.split(','), 'added', row.id);
       if (isNew && repeat) {
@@ -107,7 +116,7 @@ export default function Entry() {
           kind: kind === 'income' ? 'income' : 'bill', amount: amt, accountId, toAccountId: null, categoryId: row.categoryId, frequency: freq,
           nextDue: advanceDue(freq, date, anchorFor(freq, date)), anchorDay: anchorFor(freq, date), endDate: null, debtId: null, active: true, createdAt: nowMs() });
       }
-    }, isNew ? `${kind === 'income' ? 'Income' : 'Expense'} of ${m(amt)} saved${repeat ? ', repeats' : ''}` : 'Saved changes',
+    }, crossed ? crossingText(crossed, v => peso(v, { cents: false })) : isNew ? `${kind === 'income' ? 'Income' : 'Expense'} of ${m(amt)} saved${repeat ? ', repeats' : ''}` : 'Saved changes',
     // A new salary: offer to split it right away.
     isNew && kind === 'income' && isSalary(row.categoryId) ? { label: 'Plan it', run: () => router.push({ pathname: '/paycheck', params: { amount: String((convert(amt, cur, 'PHP', rates) ?? amt) / 100), date } }) } : undefined);
     if (!ok) return;
@@ -142,6 +151,9 @@ export default function Entry() {
     debt_in: 'Debt movement', debt_out: 'Debt movement' } as Record<string, string>)[existing!.type] ?? 'Transaction' : null;
 
   const catLabel = data.categories.find(x => x.id === categoryId)?.name;
+  // A payee you've filed before: offer the same category.
+  const suggested = !special && !categoryId && note.trim()
+    ? recall(data.settings.catMemory as CatMemory | undefined, note, new Set(data.categories.filter(x => x.kind === kind && !x.archived).map(x => x.id))) : null;
   const saveLabel = value > 0 ? `Save ${m(Math.round(value * 100))}${catLabel ? ` ${kind === 'income' ? 'from' : 'on'} ${catLabel}` : ''}` : `Save ${kind}`;
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
@@ -208,6 +220,11 @@ export default function Entry() {
         ) : null}
 
         <Field label="Note" value={note} onChangeText={setNote} placeholder={kind === 'income' ? 'e.g. October salary' : 'e.g. Lunch with team'} maxLength={120} onFocus={() => setKeypadOpen(false)} />
+        {suggested ? (
+          <View style={{ flexDirection: 'row' }}>
+            <Chip icon="history" label={`Same as last time: ${data.categories.find(x => x.id === suggested)?.name}`} onPress={() => setCategoryId(suggested)} />
+          </View>
+        ) : null}
         {!special ? <CategoryGrid kind={kind} value={categoryId} onChange={(id) => { setCategoryId(id); }} /> : null}
         <FormRow>
           <DateField label="Date" value={date} onChange={(v) => v && setDate(v)} />

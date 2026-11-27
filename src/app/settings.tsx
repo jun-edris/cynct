@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import Constants from 'expo-constants';
 import { useData } from '../data/DataContext';
 import { useTheme } from '../theme';
+import { KHeader, KSheet, OnNight } from '../components/k';
 import { Button, Card, Icon, List, Row, Screen, Section, Segmented, Select, Sheet, T, Toggle } from '../components/ui';
 import { useAccountOptions } from '../components/domain';
 import { canUseBiometrics } from '../components/LockGate';
@@ -48,7 +49,11 @@ export default function Settings() {
   });
 
   return (
-    <Screen title="Settings" back padBottom={40}>
+    <Screen headerless edge padBottom={40}>
+      <KHeader title="Settings" back>
+        <OnNight style={{ marginTop: 8 }}>Look, reminders, backups and your data.</OnNight>
+      </KHeader>
+      <KSheet>
       <Section title="Appearance" style={{ marginTop: 0 }}>
         <Segmented value={theme} onChange={(v) => act(d => setSetting(d, 'theme', v))} options={[['system', 'Phone', 'cellphone'], ['light', 'Light', 'white-balance-sunny'], ['dark', 'Dark', 'weather-night']]} />
       </Section>
@@ -94,7 +99,7 @@ export default function Settings() {
           {folder && data.settings.folderBackupError ? (
             <T v="small" color={c.spend}>{`The last copy to your folder failed (${data.settings.folderBackupError as string}). Pick the folder again.`}</T>
           ) : null}
-          <T v="small">A backup is saved inside the app every day (last 14 kept). Those copies vanish if you uninstall or lose the phone. The Google Drive app on Android doesn’t sync phone folders, so to get a copy into Drive tap “Save to Drive”, then choose Drive and tap Save.</T>
+          <T v="small">Every day you open Cynct, a backup is saved inside the app and, once you pick one, to a folder on your phone (for example Documents › Cynct). The folder copy survives an uninstall. Backups older than 30 days are deleted from both places; the newest 3 are always kept. To get a copy into Google Drive, tap “Save to Drive”, choose Drive, then tap Save.</T>
           <Button icon="folder-outline" label={folder ? 'Change folder' : 'Pick backup folder'} onPress={() => run(async () => { if (!(await pickBackupFolder(db))) throw new Error('No folder picked.'); }, 'Backup folder set and backed up')} />
           <View style={{ flexDirection: 'row', gap: 10 }}>
             <Button small variant="secondary" icon="content-save-outline" label="Back up now" style={{ flex: 1 }}
@@ -146,6 +151,7 @@ export default function Settings() {
           <Button variant="secondary" label="Cancel" onPress={() => setConfirm(null)} />
         </View>
       </Sheet>
+      </KSheet>
     </Screen>
   );
 }

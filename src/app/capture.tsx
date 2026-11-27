@@ -12,7 +12,9 @@ import { APPS, parseCapture, type CaptureRow, type Draft } from '../lib/capture'
 import { alreadyKnown, parseMayaScreen, screenToCapture } from '../lib/screenshot';
 import { ocrSupported, readText } from '../data/ocr';
 import { accessOn, addDraft, captureSupported, draftsFrom, readCapture, resolveDraft, type CapturePrefs } from '../data/capture';
-import { money } from '../lib/currency';
+import { convert, money } from '../lib/currency';
+import { budgetCrossings, crossingText } from '../lib/budgetAlert';
+import type { CatMemory } from '../lib/learn';
 import { dayLabel, todayISO } from '../lib/money';
 
 const appName = (id: string | null) => APPS.find(a => a.id === id)?.name ?? id ?? 'another account';
@@ -20,8 +22,8 @@ const when = (ms: number) => { const d = new Date(ms); return `${dayLabel(todayI
 
 function DraftCard({ d, prefs }: { d: Draft; prefs: CapturePrefs }) {
   const { c } = useTheme();
-  const { data, act, rates, cats, curOf, fmt } = useData();
-  const r = resolveDraft(d, prefs, data.accounts, cats, rates);
+  const { data, act, rates, cats, curOf, fmt, rtx } = useData();
+  const r = resolveDraft(d, prefs, data.accounts, cats, rates, data.settings.catMemory as CatMemory | undefined);
   // Already in Cynct (e.g. Received was tapped first)? Or does it settle a planned payment?
   const dup = r.tx ? findRecorded(r.tx, data.transactions) : null;
   const planRow = (() => {
@@ -89,7 +91,11 @@ function DraftCard({ d, prefs }: { d: Draft; prefs: CapturePrefs }) {
       <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
         {dup ? <Button small icon="close" label="Dismiss" onPress={() => act(db => setCaptured(db, d.ids, 'dismissed'), 'Dismissed')} style={{ flexGrow: 1 }} />
           : planRow ? <Button small icon="calendar-check" label={planRow.kind === 'income' ? 'Mark received' : 'Mark paid'} onPress={settle} style={{ flexGrow: 1 }} /> : null}
-        <Button small variant={dup || planRow ? 'secondary' : 'primary'} icon="check" label={dup || planRow ? 'Add as new' : 'Add'} disabled={!r.tx} onPress={() => { if (r.tx) act(db => addDraft(db, d, r.tx!), `${d.kind === 'transfer' ? 'Transfer' : d.kind === 'income' ? 'Income' : 'Expense'} added`); }} style={{ flexGrow: 1 }} />
+        <Button small variant={dup || planRow ? 'secondary' : 'primary'} icon="check" label={dup || planRow ? 'Add as new' : 'Add'} disabled={!r.tx} onPress={() => {
+          if (!r.tx) return;
+          const crossed = r.tx.type === 'expense' ? budgetCrossings(data.budgets, rtx, cats, { categoryId: r.tx.categoryId, amount: convert(r.tx.amount, curOf(r.tx.accountId), 'PHP', rates) ?? r.tx.amount, date: r.tx.date }, todayISO())[0] : undefined;
+          act(db => addDraft(db, d, r.tx!), crossed ? crossingText(crossed, v => fmt(v, null)) : `${d.kind === 'transfer' ? 'Transfer' : d.kind === 'income' ? 'Income' : 'Expense'} added`);
+        }} style={{ flexGrow: 1 }} />
         <Button small variant="secondary" icon="pencil-outline" label="Edit" onPress={() => edit()} style={{ flexGrow: 1 }} />
         {d.kind === 'income' && d.check ? <Button small variant="secondary" icon="swap-horizontal" label="Transfer" onPress={() => edit(true)} /> : null}
         {!dup ? <Button small variant="ghost" icon="close" label="Dismiss" onPress={() => act(db => setCaptured(db, d.ids, 'dismissed'), 'Dismissed')} /> : null}

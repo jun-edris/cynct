@@ -289,3 +289,93 @@ export function KSheet({ children }: { children: React.ReactNode }) {
 export function OnNight({ children, v = 'sm', style }: { children: React.ReactNode; v?: 'sm' | 'xs'; style?: StyleProp<import('react-native').TextStyle> }) {
   return <Text style={[{ fontFamily: fonts.medium, fontSize: v === 'sm' ? 14 : 12, color: '#E7E0FF' }, style]}>{children}</Text>;
 }
+
+// ---------- coin jar ----------
+/** A plain ₱ coin seen face-on: Senti without his face, for filling jars. */
+function CoinShape({ cx, cy, r }: { cx: number; cy: number; r: number }) {
+  return (
+    <G>
+      <Circle cx={cx} cy={cy} r={r} fill={COIN} stroke={INK} strokeWidth={r * 0.16} />
+      <Circle cx={cx} cy={cy} r={r * 0.7} fill="none" stroke={INK} strokeWidth={r * 0.07} strokeDasharray={`${r * 0.12} ${r * 0.22}`} opacity={0.5} />
+      <Ellipse cx={cx - r * 0.35} cy={cy - r * 0.4} rx={r * 0.22} ry={r * 0.12} fill="#FFFFFF" opacity={0.55} transform={`rotate(-35 ${cx - r * 0.35} ${cy - r * 0.4})`} />
+    </G>
+  );
+}
+
+// Small, stable wobble per coin so the pile looks tossed in, not gridded.
+const jit = (i: number) => (((i * 9301 + 49297) % 233280) / 233280 - 0.5);
+
+/**
+ * A glass jar that fills with faceless ₱ coins as a goal fills up. The last few coins drop in when it
+ * appears (skipped with Reduce motion). `onDark` draws the glass for a gradient or night background.
+ */
+export function CoinJar({ pct, width = 150, label, onDark = true }: { pct: number; width?: number; label?: string; onDark?: boolean }) {
+  const reduce = useReduceMotion();
+  const W = width, H = width * 1.22;
+  const glass = onDark ? '#FFFFFF' : INK;
+  // Jar geometry (in px): a lid, a short neck and a rounded body.
+  const lidW = W * 0.62, lidH = H * 0.07, neckW = W * 0.56, neckY = lidH, bodyY = H * 0.2;
+  const left = W * 0.06, right = W * 0.94, bottom = H * 0.97, rad = W * 0.16;
+  const body = `M${(W - neckW) / 2} ${neckY} L${(W - neckW) / 2} ${bodyY - rad * 0.3} Q${(W - neckW) / 2} ${bodyY} ${left + rad} ${bodyY}`
+    + ` Q${left} ${bodyY} ${left} ${bodyY + rad} L${left} ${bottom - rad} Q${left} ${bottom} ${left + rad} ${bottom} L${right - rad} ${bottom}`
+    + ` Q${right} ${bottom} ${right} ${bottom - rad} L${right} ${bodyY + rad} Q${right} ${bodyY} ${right - rad} ${bodyY}`
+    + ` Q${(W + neckW) / 2} ${bodyY} ${(W + neckW) / 2} ${bodyY - rad * 0.3} L${(W + neckW) / 2} ${neckY} Z`;
+
+  // Pack coins in offset rows inside the body.
+  const r = Math.max(7, W * 0.075);
+  const innerL = left + r * 0.9, innerR = right - r * 0.9, floor = bottom - r * 1.05, ceil = bodyY + r * 0.6;
+  const cols = Math.max(1, Math.floor((innerR - innerL) / (r * 2)) + 1);
+  const rowH = r * 1.7;
+  const rows = Math.max(1, Math.floor((floor - ceil) / rowH) + 1);
+  const spots: { x: number; y: number }[] = [];
+  for (let row = 0; row < rows; row++) {
+    const shift = row % 2 ? r : 0;
+    const n = row % 2 ? cols - 1 : cols;
+    for (let k = 0; k < n; k++) {
+      const i = spots.length;
+      spots.push({ x: innerL + shift + k * ((innerR - innerL) / Math.max(1, cols - 1)) + jit(i) * r * 0.35, y: floor - row * rowH + jit(i + 7) * r * 0.25 });
+    }
+  }
+  const p = Math.max(0, Math.min(1, pct));
+  const count = p <= 0 ? 0 : Math.max(1, Math.round(p * spots.length));
+  const animN = reduce ? 0 : Math.min(6, count);
+  const still = spots.slice(0, count - animN);
+  const falling = spots.slice(count - animN, count);
+
+  return (
+    <View style={{ width: W, height: H }} accessible accessibilityRole="image" accessibilityLabel={`Coin jar ${Math.round(p * 100)}% full${label ? `, goal ${label}` : ''}`}>
+      <Svg width={W} height={H} style={{ position: 'absolute' }}>
+        <Path d={body} fill={glass} opacity={0.08} />
+        {still.map((s, i) => <CoinShape key={i} cx={s.x} cy={s.y} r={r} />)}
+      </Svg>
+      {falling.map((s, i) => <FallingCoin key={i} x={s.x} y={s.y} r={r} delay={250 + i * 140} from={-s.y - r * 2} />)}
+      <Svg width={W} height={H} style={{ position: 'absolute' }} pointerEvents="none">
+        <Path d={body} fill="none" stroke={glass} strokeWidth={2.5} opacity={0.75} />
+        <Path d={`M${left + W * 0.07} ${bodyY + rad} L${left + W * 0.07} ${bottom - rad * 1.4}`} stroke={glass} strokeWidth={3} strokeLinecap="round" opacity={0.35} />
+        <Rect x={(W - lidW) / 2} y={0} width={lidW} height={lidH} rx={lidH / 2.4} fill={onDark ? 'rgba(255,255,255,0.28)' : 'rgba(23,18,45,0.18)'} stroke={glass} strokeWidth={2} strokeOpacity={0.75} />
+      </Svg>
+      {label ? (
+        <View style={{ position: 'absolute', right: -4, top: H * 0.24, backgroundColor: '#FFFFFF', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1.5, borderColor: INK, transform: [{ rotate: '6deg' }] }}>
+          <Text style={{ fontFamily: fonts.num, fontSize: 12, color: INK }}>{label}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function FallingCoin({ x, y, r, delay, from }: { x: number; y: number; r: number; delay: number; from: number }) {
+  const [v] = useState(() => new Animated.Value(0));
+  useEffect(() => {
+    const a = Animated.sequence([Animated.delay(delay), Animated.timing(v, { toValue: 1, duration: 520, easing: Easing.bounce, useNativeDriver: true })]);
+    a.start();
+    return () => a.stop();
+  }, [v, delay]);
+  const size = r * 2 + 4;
+  return (
+    <Animated.View pointerEvents="none" style={{ position: 'absolute', left: x - size / 2, top: y - size / 2, width: size, height: size,
+      opacity: v.interpolate({ inputRange: [0, 0.05, 1], outputRange: [0, 1, 1] }),
+      transform: [{ translateY: v.interpolate({ inputRange: [0, 1], outputRange: [from, 0] }) }, { rotate: v.interpolate({ inputRange: [0, 1], outputRange: ['-90deg', '0deg'] }) }] }}>
+      <Svg width={size} height={size}><CoinShape cx={size / 2} cy={size / 2} r={r} /></Svg>
+    </Animated.View>
+  );
+}

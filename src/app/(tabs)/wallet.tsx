@@ -40,7 +40,7 @@ function AccountCard({ a, balance, base }: { a: Account; balance: number; base: 
 
 export default function Wallet() {
   const { c } = useTheme();
-  const { data, act, balances, baseBalances, goalFunds, missing } = useData();
+  const { data, act, balances, baseBalances, goalFunds, goalLinked, missing } = useData();
   const hidden = data.settings.hideAmounts === true;
   const [view, setView] = useState<'cards' | 'list'>('cards');
   const nw = netWorth(data.accounts, baseBalances, goalFunds);
@@ -62,7 +62,7 @@ export default function Wallet() {
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: 14, marginTop: 4 }}>
             <OnNight v="xs">{`You have ${compactPeso(nw.assets)}`}</OnNight>
             <OnNight v="xs">{`You owe ${compactPeso(nw.liabilities)}`}</OnNight>
-            {goalFunds > 0 ? <OnNight v="xs">{`In goals ${compactPeso(goalFunds)}`}</OnNight> : null}
+            {goalFunds + goalLinked > 0 ? <OnNight v="xs">{`In goals ${compactPeso(goalFunds + goalLinked)}`}</OnNight> : null}
           </View>
         </View>
       </KHeader>

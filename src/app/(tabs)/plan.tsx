@@ -5,8 +5,9 @@ import { KHeader, KSheet, OnNight, OnNightPill } from '../../components/k';
 import { useData, safeJson } from '../../data/DataContext';
 import { radius, useTheme } from '../../theme';
 import { Card, Grid, Icon, IconBubble, Screen, Section, T } from '../../components/ui';
-import { compactPeso, dayLabel, peso, todayISO } from '../../lib/money';
-import { budgetStatus, debtStatus, goalProgress, upcoming } from '../../lib/ledger';
+import { addDays, compactPeso, dayLabel, daysBetween, lastDayOfMonth, peso, todayISO } from '../../lib/money';
+import { budgetStatus, debtStatus, forecast, goalProgress, isLiability, summarize, upcoming } from '../../lib/ledger';
+import { safeToSpend } from '../../lib/paycheck';
 import { Squish } from '../../components/motion';
 
 function Tile({ icon, color, title, sub, href, wide }: { icon: string; color: string; title: string; sub?: string; href: Href; wide?: boolean }) {
@@ -37,6 +38,16 @@ export default function Plan() {
   const owe = open.filter(d => d.direction === 'owe').reduce((s, d) => s + debtStatus(d, rtx).remaining, 0);
   const owed = open.filter(d => d.direction === 'owed').reduce((s, d) => s + debtStatus(d, rtx).remaining, 0);
   const next = upcoming(plannedBase.recurring, plannedBase.installments.filter(i => i.paidCount < i.months), today, 60)[0];
+  // Safe to spend: money in accounts you spend from (not cards, loans, accounts tied to a goal, or ones you switched off),
+  // minus bills due before money next comes in, spread over the days until then.
+  const goalAccounts = new Set([...goals.flatMap(g => safeJson<string[]>(g.accountIds, [])), ...((data.settings.stsExclude as string[] | undefined) ?? [])]);
+  const spendable = data.accounts.filter(a => !a.archived && !isLiability(a.type) && !goalAccounts.has(a.id)).reduce((x, a) => x + (baseBalances.get(a.id) ?? 0), 0);
+  const nextIn = upcoming(plannedBase.recurring, [], today, 60).find(i => i.direction === 'in' && i.date > today) ?? null;
+  const until = nextIn?.date ?? addDays(lastDayOfMonth(today), 1);
+  const billsBefore = forecast({ accounts: data.accounts, balances: baseBalances, txs: rtx, recurring: plannedBase.recurring,
+    installments: plannedBase.installments.filter(i => i.paidCount < i.months), debts: data.debts }, today, Math.max(1, daysBetween(today, until)))
+    .items.filter(i => i.direction === 'out' && i.date < until).reduce((x, i) => x + i.amount, 0);
+  const safe = safeToSpend({ spendable, spentToday: summarize(rtx, today, today, cats).expense, bills: billsBefore, today, next: nextIn ? { date: nextIn.date, name: nextIn.name } : null });
   const activeTrip = data.trips.find(t => !t.endDate);
   const activeInst = data.installments.filter(i => i.paidCount < i.months).length;
 
@@ -45,9 +56,10 @@ export default function Plan() {
       <KHeader title="Plan">
         <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 12, marginTop: 12 }}>
           <View style={{ flex: 1 }}>
-            <OnNight>{next ? `Next · ${next.name}` : 'Nothing planned'}</OnNight>
-            <T v="display" color="#FFFFFF" style={{ fontSize: 40, lineHeight: 48 }} numberOfLines={1}>{next ? peso(Math.abs(next.amount), { cents: false }) : '—'}</T>
-            <OnNight v="xs">{next ? dayLabel(next.date) : 'Add bills and paydays in Planned payments'}</OnNight>
+            <OnNight>Safe to spend today</OnNight>
+            <T v="display" color={safe.left < 0 ? '#FF9CCB' : '#FFFFFF'} style={{ fontSize: 50, lineHeight: 58 }} numberOfLines={1}>{safe.left < 0 ? `−${peso(-safe.left, { cents: false })}` : peso(safe.left, { cents: false })}</T>
+            <OnNight v="xs">{`of ${peso(safe.allowance, { cents: false })} a day · until ${safe.untilName ? `${safe.untilName}, ` : ''}${dayLabel(safe.until)}${billsBefore ? ` · after ${compactPeso(billsBefore)} in bills` : ''}`}</OnNight>
+            {next ? <OnNight v="xs" style={{ marginTop: 2 }}>{`Next planned: ${next.name}, ${dayLabel(next.date)}`}</OnNight> : null}
           </View>
           <OnNightPill label="Plan pay" onPress={() => router.push('/paycheck')} />
         </View>

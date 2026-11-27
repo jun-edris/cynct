@@ -36,6 +36,9 @@ export default function AccountScreen() {
   const [limit, setLimit] = useState(inputValue(a?.creditLimit));
   const [statementDay, setStatementDay] = useState(a?.statementDay ? String(a.statementDay) : '');
   const [dueDay, setDueDay] = useState(a?.dueDay ? String(a.dueDay) : '');
+  // Accounts left out of "Safe to spend" (savings, foreign-currency holdings, money you don't touch day to day).
+  const stsOut = (data.settings.stsExclude as string[] | undefined) ?? [];
+  const [inSafe, setInSafe] = useState(!a || !stsOut.includes(a.id));
   const [note, setNote] = useState(a?.note ?? '');
   const [isDefault, setDefault] = useState(data.settings.defaultAccountId === id);
   const [more, setMore] = useState(!!(a?.statementDay || a?.dueDay || a?.note));
@@ -73,6 +76,8 @@ export default function AccountScreen() {
       if (isDefault) setSetting(db, 'defaultAccountId', row.id);
       else if (data.settings.defaultAccountId === row.id) setSetting(db, 'defaultAccountId', null);
       else if (!data.settings.defaultAccountId && !a) setSetting(db, 'defaultAccountId', row.id);
+      const nextOut = inSafe || liab ? stsOut.filter(x => x !== row.id) : [...new Set([...stsOut, row.id])];
+      if (nextOut.length !== stsOut.length) setSetting(db, 'stsExclude', nextOut);
     }, correction ? `Saved, corrected by ${m(correction, { sign: true })}` : a ? 'Saved changes' : `Added ${row.name}`);
     if (ok) close();
   };
@@ -130,6 +135,7 @@ export default function AccountScreen() {
             </View>
           ) : null}
           <Toggle label="Default for quick entry" hint="Used when you don’t name an account, like “gas 250”." value={isDefault} onChange={setDefault} />
+          {!liab ? <Toggle label="Count in safe to spend" hint="Turn off for savings or money you don’t spend day to day. It still counts in your net worth." value={inSafe} onChange={setInSafe} /> : null}
           {a && !unused && !a.archived ? <T v="small">This account has history or is used by a plan or goal, so it can be archived but not deleted.</T> : null}
           <ErrorText text={error} />
           {a ? <Button variant="danger" label={a.archived ? 'Unarchive' : unused ? 'Delete account' : 'Archive account'} onPress={a.archived || !unused ? archive : del} /> : null}

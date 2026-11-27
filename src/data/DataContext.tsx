@@ -26,7 +26,10 @@ interface Ctx {
   curOf: (accountId: string | null | undefined) => string;
   /** Formats an amount in the given account's currency. */
   fmt: (minor: number, accountId: string | null | undefined, opts?: { sign?: boolean; cents?: boolean | 'auto' }) => string;
+  /** Money moved inside goals (goal deposits). Not in any account balance. */
   goalFunds: number;
+  /** Positive balances of accounts linked to goals. Already counted in those accounts. */
+  goalLinked: number;
   /** Planned payments and installments with amounts in pesos, for timelines and forecasts. */
   plannedBase: { recurring: AllData['recurring']; installments: AllData['installments'] };
   parseCats: ParseCategory[];
@@ -83,9 +86,12 @@ export function DataProvider({ db, children }: { db: DB; children: React.ReactNo
       installments: data.installments.map(i => ({ ...i, monthlyAmount: toBase(i.monthlyAmount, curOf(i.accountId), rates) })),
     };
     const goalFunds = data.goals.filter(g => !g.archived).reduce((s, g) => s + goalFund(g, rtx), 0);
+    // An account linked to two goals counts once.
+    const linkedIds = new Set(data.goals.filter(g => !g.archived).flatMap(g => safeJson<string[]>(g.accountIds, [])));
+    const goalLinked = [...linkedIds].reduce((s, id) => s + Math.max(0, baseBalances.get(id) ?? 0), 0);
     const parseCats = data.categories.map(c => ({ ...c, keywords: safeJson<string[]>(c.keywords, []) }));
     return {
-      db, data, balances, baseBalances, rtx, rates, missing: missingRates(data.accounts, rates), curOf, fmt, goalFunds, plannedBase, parseCats, cats: data.categories,
+      db, data, balances, baseBalances, rtx, rates, missing: missingRates(data.accounts, rates), curOf, fmt, goalFunds, goalLinked, plannedBase, parseCats, cats: data.categories,
       catById: new Map(data.categories.map(c => [c.id, c])), accById: new Map(data.accounts.map(a => [a.id, a])),
       reload, act, toast, toastState, dismissToast,
     };

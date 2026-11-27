@@ -3,8 +3,9 @@ import { Image, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useData, safeJson } from '../../data/DataContext';
 import { radius, useTheme } from '../../theme';
-import { Block, Button, Card, DateField, Empty, ErrorText, Field, IconButton, List, Row, Screen, Section, Select, Sheet, StatTile, T } from '../../components/ui';
-import { Hills, TxRow, useAccountOptions } from '../../components/domain';
+import { CoinJar, GlassIcon, KHeader, KSheet, OnNight } from '../../components/k';
+import { Button, Card, DateField, Empty, ErrorText, Field, List, Row, Screen, Section, Select, Sheet, StatTile, T } from '../../components/ui';
+import { TxRow, useAccountOptions } from '../../components/domain';
 import { goalProgress } from '../../lib/ledger';
 import { compactPeso, dayLabel, peso, toCentavos, todayISO } from '../../lib/money';
 import { goalMove, remove, softDelete } from '../../db/repo';
@@ -12,7 +13,7 @@ import { toBase } from '../../lib/currency';
 
 export default function GoalDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { c, dark } = useTheme();
+  const { c } = useTheme();
   const { data, baseBalances, rtx, act, accById, toast, fmt, curOf, rates } = useData();
   const g = data.goals.find(x => x.id === id);
   const [move, setMove] = useState<'in' | 'out' | null>(null);
@@ -62,21 +63,20 @@ export default function GoalDetail() {
   };
 
   return (
-    <Screen title={g.name} back right={<>
-      <IconButton name="pencil-outline" label="Edit goal" onPress={() => router.push(`/goal-edit/${g.id}`)} filled />
-      <IconButton name="trash-can-outline" label="Delete goal" onPress={del} filled color={c.spend} />
-    </>}>
+    <Screen headerless edge>
+      <KHeader title={g.name} back right={<>
+        <GlassIcon name="pencil-outline" label="Edit goal" onPress={() => router.push(`/goal-edit/${g.id}`)} />
+        <GlassIcon name="trash-can-outline" label="Delete goal" onPress={del} />
+      </>}>
+        <OnNight style={{ marginTop: 12 }}>Saved so far</OnNight>
+        <T v="display" color="#FFFFFF" style={{ fontSize: 46, lineHeight: 54 }} numberOfLines={1}>{peso(p.saved)}</T>
+        <OnNight v="xs">of {peso(g.target, { cents: false })} · {Math.round(p.pct * 1000) / 10}%</OnNight>
+        <View style={{ alignItems: 'center', marginTop: 12 }}>
+          <CoinJar pct={p.pct} width={170} label={compactPeso(g.target)} />
+        </View>
+      </KHeader>
+      <KSheet>
       {g.photoUri ? <Image source={{ uri: g.photoUri }} style={{ width: '100%', height: 160, borderRadius: radius.xl, marginBottom: 12 }} /> : null}
-      <Block tone="navy" style={{ paddingHorizontal: 0, paddingBottom: 0 }}>
-        <View style={{ paddingHorizontal: 20 }}>
-          <T v="semi" color={c.navyMuted}>Saved so far</T>
-          <T v="display" color={c.navyText}>{peso(p.saved)}</T>
-          <T v="medium" color={c.navyMuted}>of {peso(g.target, { cents: false })} · {Math.round(p.pct * 1000) / 10}%</T>
-        </View>
-        <View style={{ marginTop: 8 }}>
-          <Hills pct={p.pct} label={compactPeso(g.target)} fill={g.color} back={dark ? '#24365C' : '#16233F'} mid={dark ? '#2C4170' : '#1F3155'} ink={c.navyText} house={g.color} />
-        </View>
-      </Block>
 
       <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
         <Button icon="plus" label="Add money" onPress={() => setMove('in')} style={{ flex: 1 }} />
@@ -135,6 +135,7 @@ export default function GoalDetail() {
           <Button label={move === 'in' ? 'Add money' : 'Withdraw'} icon="check" onPress={submit} />
         </View>
       </Sheet>
+      </KSheet>
     </Screen>
   );
 }

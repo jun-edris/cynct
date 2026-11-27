@@ -11,7 +11,7 @@ import { ACCOUNT_TYPES } from '../lib/seed';
 
 export default function Overview() {
   const { c } = useTheme();
-  const { data, baseBalances: balances, balances: native, rtx, plannedBase, goalFunds, fmt } = useData();
+  const { data, baseBalances: balances, balances: native, rtx, plannedBase, goalFunds, goalLinked, fmt } = useData();
   const today = todayISO();
   const nw = netWorth(data.accounts, balances, goalFunds);
   const accounts = data.accounts.filter(a => !a.archived);
@@ -38,7 +38,9 @@ export default function Overview() {
       </Block>
       <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
         <StatTile label="Cash & banks" value={compactPeso(cash)} />
-        <StatTile label="In goals" value={compactPeso(goalFunds)} color={c.income} />
+        {/* Linked-account money is also in Cash & banks; Net position counts it once. */}
+        <StatTile label="In goals" value={compactPeso(goalFunds + goalLinked)} color={c.income}
+          sub={goalLinked ? `${compactPeso(goalLinked)} in linked accounts, also in Cash & banks` : undefined} />
       </View>
       <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
         <StatTile label="Cards & loans" value={compactPeso(cards)} color={c.spend} />

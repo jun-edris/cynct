@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { View } from 'react-native';
 import { router } from 'expo-router';
-import { useData } from '../../data/DataContext';
+import { safeJson, useData } from '../../data/DataContext';
 import { useTheme } from '../../theme';
-import { Bar, Button, Card, Chip, Field, List, Row, Screen, Section, StatTile, T } from '../../components/ui';
+import { KHeader, KSheet, OnNight } from '../../components/k';
+import { Bar, Button, Chip, Field, List, Row, Screen, Section, StatTile, T } from '../../components/ui';
 import { emergencyPlan, monthlyCosts, perMonthToClose } from '../../lib/emergency';
-import { goalFund } from '../../lib/ledger';
+import { goalProgress } from '../../lib/ledger';
 import { addMonths, dayLabel, inputValue, peso, toCentavos, todayISO } from '../../lib/money';
 
 const COVER = [3, 6, 9, 12];
@@ -13,10 +14,11 @@ const CLOSE = [6, 12, 24];
 
 export default function EmergencyTool() {
   const { c } = useTheme();
-  const { data, rtx, plannedBase } = useData();
+  const { data, rtx, plannedBase, baseBalances } = useData();
   const today = todayISO();
   const costs = monthlyCosts(plannedBase.recurring, plannedBase.installments, rtx, today);
-  const goals = data.goals.filter(g => !g.archived).map(g => ({ g, fund: goalFund(g, rtx) }));
+  // Same figure the Goals screen shows: money moved into the goal plus any linked account balances.
+  const goals = data.goals.filter(g => !g.archived).map(g => ({ g, fund: goalProgress({ ...g, annualRate: g.annualRate / 10_000, accountIds: safeJson<string[]>(g.accountIds, []) }, baseBalances, rtx, today).saved }));
   const efGoal = goals.find(x => /emergenc/i.test(x.g.name));
 
   // Empty means "use what the app worked out"; typing overrides it.
@@ -37,19 +39,20 @@ export default function EmergencyTool() {
   };
 
   return (
-    <Screen title="Emergency fund" subtitle="Money to live on if your income stopped tomorrow." back>
-      <Card style={{ gap: 6 }}>
-        <T v="label">{`${months} months of costs`}</T>
-        <T v="display">{monthly > 0 ? p0(plan.target) : '—'}</T>
+    <Screen headerless edge>
+      <KHeader title="Emergency fund" back>
+        <OnNight style={{ marginTop: 12 }}>{`${months} months of costs`}</OnNight>
+        <T v="display" color="#FFFFFF" style={{ fontSize: 46, lineHeight: 54 }}>{monthly > 0 ? p0(plan.target) : '—'}</T>
         {monthly > 0 ? (
-          <>
-            <Bar pct={plan.pct} color={plan.gap ? c.mango : c.income} height={10} />
-            <T v="small">{plan.gap
+          <View style={{ gap: 6, marginTop: 6 }}>
+            <Bar pct={plan.pct} color={plan.gap ? c.amber : '#8BF0BC'} track="rgba(255,255,255,0.2)" height={10} />
+            <OnNight v="xs">{plan.gap
               ? saved > 0 ? `You have ${p0(saved)}, enough for about ${plan.covers} ${plan.covers === 1 ? 'month' : 'months'}. ${p0(plan.gap)} to go.` : `Nothing set aside yet. ${p0(plan.gap)} to go.`
-              : `Fully funded. What you have covers about ${plan.covers} months.`}</T>
-          </>
-        ) : <T v="small" color={c.warn}>Enter what a month costs you below.</T>}
-      </Card>
+              : `Fully funded. What you have covers about ${plan.covers} months.`}</OnNight>
+          </View>
+        ) : <OnNight v="xs">Enter what a month costs you below.</OnNight>}
+      </KHeader>
+      <KSheet>
 
       <View style={{ gap: 14, marginTop: 16 }}>
         <View style={{ gap: 8 }}>
@@ -96,6 +99,7 @@ export default function EmergencyTool() {
 
       <Button variant="secondary" icon="flag-plus-outline" label={efGoal ? `Open ${efGoal.g.name}` : 'Make it a goal'} style={{ marginTop: 16 }} onPress={makeGoal} disabled={!efGoal && !plan.target} />
       <T v="small" style={{ marginTop: 10 }}>Keep it somewhere you can reach in a day without losing value, like a savings account or digital bank. Not stocks or crypto.</T>
+      </KSheet>
     </Screen>
   );
 }

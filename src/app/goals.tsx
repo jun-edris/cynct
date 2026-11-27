@@ -2,8 +2,9 @@ import React from 'react';
 import { Image, View } from 'react-native';
 import { router } from 'expo-router';
 import { useData, safeJson } from '../data/DataContext';
-import { radius, useTheme } from '../theme';
-import { Bar, Block, Button, Card, Empty, Ring, Screen, Section, T } from '../components/ui';
+import { useTheme } from '../theme';
+import { Glass, GlassIcon, KHeader, KSheet, OnNight } from '../components/k';
+import { Bar, Card, Empty, Ring, Screen, Section, T } from '../components/ui';
 import { goalProgress, leftLabel } from '../lib/ledger';
 import { compactPeso, peso, todayISO } from '../lib/money';
 
@@ -17,22 +18,23 @@ export default function Goals() {
   const done = all.filter(x => x.p.pct >= 1).length;
 
   return (
-    <Screen title="Goals" subtitle="Set money aside and watch each goal fill up." back right={<Button small icon="plus" label="New" onPress={() => router.push('/goal-edit/new')} />}>
-      <Block tone="navy">
-        <T v="semi" color={c.navyMuted}>Saved across goals</T>
-        <T v="display" color={c.navyText} style={{ marginTop: 4 }}>{peso(saved, { cents: false })}</T>
-        <View style={{ marginTop: 12 }}><Bar pct={target ? saved / target : 0} track={c.navyLine} /></View>
-        <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+    <Screen headerless edge>
+      <KHeader title="Goals" back right={<GlassIcon name="plus" label="New goal" onPress={() => router.push('/goal-edit/new')} />}>
+        <OnNight style={{ marginTop: 12 }}>Saved across goals</OnNight>
+        <T v="display" color="#FFFFFF" style={{ fontSize: 46, lineHeight: 54 }}>{peso(saved, { cents: false })}</T>
+        <View style={{ marginTop: 10 }}><Bar pct={target ? saved / target : 0} color={c.amber} track="rgba(255,255,255,0.2)" /></View>
+        <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
           {[['Active', String(all.length - done)], ['Completed', String(done)], ['Targeted', compactPeso(target)]].map(([l, v]) => (
-            <View key={l} style={{ flex: 1, backgroundColor: c.navyLine, borderRadius: radius.md, padding: 12 }}>
-              <T v="label" color={c.navyMuted}>{l}</T>
-              <T v="num" color={c.navyText} style={{ fontSize: 18 }}>{v}</T>
-            </View>
+            <Glass key={l} style={{ flex: 1, padding: 10 }}>
+              <OnNight v="xs">{l}</OnNight>
+              <T v="num" color="#FFFFFF" style={{ fontSize: 18 }}>{v}</T>
+            </Glass>
           ))}
         </View>
-      </Block>
+      </KHeader>
+      <KSheet>
 
-      <Section title="Your goals">
+      <Section title="Your goals" style={{ marginTop: 0 }}>
         {all.length ? (
           <View style={{ gap: 12 }}>
             {all.map(({ g, p }) => (
@@ -52,6 +54,7 @@ export default function Goals() {
           </View>
         ) : <Empty icon="flag-outline" title="No goals yet" text="A house, an emergency fund, a trip. Cynct shows exactly how much to save each month." action="Create a goal" onAction={() => router.push('/goal-edit/new')} />}
       </Section>
+      </KSheet>
     </Screen>
   );
 }

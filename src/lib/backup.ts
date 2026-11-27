@@ -8,7 +8,8 @@ import { exportAll, importAll, applyPwaImport, setSetting, type DB } from '../db
 import { convertPwaBackup, isPwaBackup } from './importPwa';
 import { todayISO } from './money';
 
-const KEEP = 14;
+import { expiredBackups } from './backupPrune';
+
 const backupDir = () => new Directory(Paths.document, 'backups');
 
 function backupJson(db: DB) { return JSON.stringify(exportAll(db)); }
@@ -35,7 +36,7 @@ export async function runDailyBackup(db: DB, settings: Record<string, unknown>):
   if (file.exists) file.delete();
   file.create();
   await file.write(json);
-  for (const old of listLocalBackups().slice(KEEP)) new File(old.uri).delete();
+  for (const old of expiredBackups(listLocalBackups().map(b => b.uri), today)) { try { new File(old).delete(); } catch { /* already gone */ } }
 
   let folderError: string | undefined;
   const folder = settings.backupFolderUri as string | undefined;
@@ -43,6 +44,7 @@ export async function runDailyBackup(db: DB, settings: Record<string, unknown>):
     try {
       await writeToFolder(folder, `cynct-${today}`, json);
       setSetting(db, 'lastFolderBackup', today);
+      await pruneFolder(folder, today);
       setSetting(db, 'folderBackupError', null);
     } catch {
       folderError = 'Couldn’t write to your backup folder. Pick it again in Settings.';
@@ -59,6 +61,14 @@ async function writeToFolder(folderUri: string, baseName: string, json: string) 
   const match = existing.find(u => decodeURIComponent(u).endsWith(`${baseName}.json`));
   const target = match ?? await SAF.createFileAsync(folderUri, baseName, 'application/json');
   await Legacy.writeAsStringAsync(target, json, { encoding: Legacy.EncodingType.UTF8 });
+}
+
+/** Deletes month-old Cynct backups from the backup folder. Leaves every other file alone. */
+async function pruneFolder(folderUri: string, today: string) {
+  try {
+    const files = await Legacy.StorageAccessFramework.readDirectoryAsync(folderUri);
+    for (const uri of expiredBackups(files, today)) await Legacy.StorageAccessFramework.deleteAsync(uri, { idempotent: true });
+  } catch { /* pruning is best effort; the backup itself already succeeded */ }
 }
 
 /** Ask the user for a folder (Android). Writes a backup there immediately to confirm it works. */

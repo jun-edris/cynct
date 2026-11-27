@@ -3,7 +3,8 @@ import { View } from 'react-native';
 import { router } from 'expo-router';
 import { useData } from '../data/DataContext';
 import { useTheme } from '../theme';
-import { Bar, Button, Card, Empty, IconBubble, List, Ring, Row, Screen, Segmented, T } from '../components/ui';
+import { GlassIcon, KHeader, KSheet, OnNight } from '../components/k';
+import { Bar, Empty, IconBubble, List, Row, Screen, Segmented, T } from '../components/ui';
 import { budgetStatus } from '../lib/ledger';
 import { peso, todayISO } from '../lib/money';
 import { PERIOD_WORD } from '../lib/labels';
@@ -19,20 +20,14 @@ export default function Budgets() {
   const avail = list.reduce((s, x) => s + x.s.available, 0);
 
   return (
-    <Screen title="Budgets" back right={<Button small icon="plus" label="New" onPress={() => router.push({ pathname: '/budget/[id]', params: { id: 'new', kind } })} />}>
+    <Screen headerless edge>
+      <KHeader title="Budgets" back right={<GlassIcon name="plus" label="New budget" onPress={() => router.push({ pathname: '/budget/[id]', params: { id: 'new', kind } })} />}>
+        <OnNight style={{ marginTop: 12 }}>{kind === 'income' ? 'Earned toward targets' : 'Used across budgets'}</OnNight>
+        <T v="display" color="#FFFFFF" style={{ fontSize: 46, lineHeight: 54 }}>{peso(used, { cents: false })}</T>
+        <OnNight v="xs">{avail ? `of ${peso(avail, { cents: false })} · ${Math.round((used / avail) * 100)}% for each budget’s current period` : 'No budgets here yet'}</OnNight>
+      </KHeader>
+      <KSheet>
       <Segmented value={kind} onChange={setKind} options={[['expense', 'Spending limits', 'arrow-up'], ['income', 'Income targets', 'arrow-down']]} />
-      {list.length ? (
-        <Card style={{ marginTop: 16, flexDirection: 'row', alignItems: 'center', gap: 18 }}>
-          <Ring pct={avail ? used / avail : 0} size={96} stroke={11} color={kind === 'income' ? c.income : used > avail ? c.spend : c.mango}>
-            <T v="num" style={{ fontSize: 18 }}>{avail ? Math.round((used / avail) * 100) : 0}%</T>
-          </Ring>
-          <View style={{ flex: 1, gap: 2 }}>
-            <T v="label">{kind === 'income' ? 'Earned toward targets' : 'Used across budgets'}</T>
-            <T v="numLg">{peso(used, { cents: false })}</T>
-            <T v="small">of {peso(avail, { cents: false })} for each budget’s current period</T>
-          </View>
-        </Card>
-      ) : null}
       <View style={{ marginTop: 16 }}>
         {list.length ? (
           <List>
@@ -57,6 +52,7 @@ export default function Budgets() {
           text={kind === 'income' ? 'Set a target like ₱100k a month and watch your progress.' : 'Pick one category first. Food usually gives the fastest win.'}
           action="Create one" onAction={() => router.push({ pathname: '/budget/[id]', params: { id: 'new', kind } })} />}
       </View>
+      </KSheet>
     </Screen>
   );
 }

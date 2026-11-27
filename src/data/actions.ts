@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { useData } from './DataContext';
 import { router } from 'expo-router';
-import { newTx, payInstallment, payRecurring, setRate, setSetting, softDelete, undoInstallmentPayment, undoRecurringPayment, upsert } from '../db/repo';
+import { newTx, payInstallment, setRate, setSetting, softDelete, undoInstallmentPayment, upsert } from '../db/repo';
 import { fetchLiveRates } from '../lib/fxrates';
 import { todayISO } from '../lib/money';
 import { BASE, money } from '../lib/currency';
@@ -12,12 +12,8 @@ export function usePayUpcoming() {
   const { data, act } = useData();
   return useCallback((item: Pick<UpcomingItem, 'source' | 'id'>) => {
     if (item.source === 'recurring') {
-      const r = data.recurring.find(x => x.id === item.id);
-      if (!r) return;
-      const debt = r.debtId ? data.debts.find(d => d.id === r.debtId) ?? null : null;
-      let txId = '';
-      act(db => { txId = payRecurring(db, r, todayISO(), r.amount, debt).id; }, `${r.name}: ${money(r.amount, data.accounts.find(a => a.id === r.accountId)?.currency)} recorded`,
-        { label: 'Undo', run: () => act(db => undoRecurringPayment(db, r, txId)) });
+      // Ask for the real amount and date first; bills and pay often differ from the plan.
+      if (data.recurring.some(x => x.id === item.id)) router.push({ pathname: '/pay-planned', params: { id: item.id } });
     } else if (item.source === 'installment') {
       const i = data.installments.find(x => x.id === item.id);
       if (!i) return;

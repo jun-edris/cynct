@@ -3,19 +3,43 @@ import { View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useData, safeJson } from '../data/DataContext';
 import { radius, useTheme } from '../theme';
-import { Block, Card, Chip, DateField, Field, Icon, List, Note, Row, Screen, Section, T, Toggle } from '../components/ui';
+import { Block, Button, Card, Chip, DateField, Field, Icon, List, Note, Row, Screen, Section, Select, T, Toggle } from '../components/ui';
+import { GradButton } from '../components/k';
+import { useAccountOptions } from '../components/domain';
 import { forecast, goalProgress, monthlyEquivalent, upcoming } from '../lib/ledger';
-import { setSetting } from '../db/repo';
-import { dailySpendingDetail, goalShare, nextPayday, payDays, payShareOf, planPaycheck, type PlanBill } from '../lib/paycheck';
+import { goalMove, setSetting, softDelete } from '../db/repo';
+import { needsShareOf, SPLITS, splitOfPlan, targetAmounts, type Split } from '../lib/split';
+import { convert, money } from '../lib/currency';
+import { GUIDES, dailySpendingDetail, goalShare, guideSplit, needOrWant, nextPayday, payDays, payShareOf, planPaycheck, type GuideKey, type PlanBill } from '../lib/paycheck';
 import { addDays, dayLabel, lastDayOfMonth, peso, toCentavos, todayISO } from '../lib/money';
 
 const INVEST = [0, 5, 10, 15, 20];
 const pct = (v: number) => `${Math.round(v * 100)}%`;
 
+/** One stacked bar of needs / wants / savings with the share printed in each part. */
+function SplitBar({ label, split, pay }: { label: string; split: Split; pay: number }) {
+  const { c } = useTheme();
+  const parts = [[split.needs, c.blue], [split.wants, c.magenta], [split.savings, c.income]] as const;
+  const total = Math.max(1, pay);
+  return (
+    <View accessible accessibilityLabel={`${label}: needs ${pct(split.needs / total)}, wants ${pct(split.wants / total)}, savings ${pct(split.savings / total)}`}>
+      <T v="label" style={{ marginBottom: 4 }}>{label}</T>
+      <View style={{ flexDirection: 'row', height: 26, borderRadius: 9, overflow: 'hidden', backgroundColor: c.sunk, gap: 2 }}>
+        {parts.filter(([v]) => v > 0).map(([v, col], i) => (
+          <View key={i} style={{ flex: v, backgroundColor: col, alignItems: 'center', justifyContent: 'center' }}>
+            {v / total >= 0.1 ? <T v="label" color="#FFFFFF" style={{ fontSize: 12 }}>{pct(v / total)}</T> : null}
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 export default function PaycheckPlan() {
   const params = useLocalSearchParams<{ amount?: string; date?: string }>();
   const { c } = useTheme();
-  const { data, baseBalances, rtx, plannedBase, cats, act } = useData();
+  const { data, baseBalances, balances, rtx, plannedBase, cats, act, rates, toast } = useData();
+  const accountOptions = useAccountOptions();
   const today = todayISO();
   const payDate = params.date && /^\d{4}-\d{2}-\d{2}$/.test(params.date) ? params.date : today;
   const [amount, setAmount] = useState(params.amount ?? '');
@@ -42,7 +66,8 @@ export default function PaycheckPlan() {
   }, payDate, days).items.filter(i => i.direction === 'out' && i.date < next)
     .map(i => ({ key: i.key, name: i.name, date: i.date, amount: i.amount, source: i.source })), [data, baseBalances, rtx, plannedBase, payDate, days, next]);
 
-  const est = useMemo(() => dailySpendingDetail(rtx, today, 60), [rtx, today]);
+  const mine = data.settings.nwClass as Record<string, 'need' | 'want'> | undefined;
+  const est = useMemo(() => dailySpendingDetail(rtx, today, 60, id => needOrWant(id, cats, mine) === 'want'), [rtx, today, cats, mine]);
   const estDaily = est.daily;
   const dailySpend = dayOverride ? Math.round((toCentavos(dayOverride) || 0) / days) : estDaily;
 
@@ -56,7 +81,40 @@ export default function PaycheckPlan() {
     return { id: g.id, name: g.name, need: goalShare(g.monthly, p.needed, p.left, days, payShare), room: Math.max(0, p.left), monthly: g.monthly > 0 ? g.monthly : p.needed };
   }).filter(g => g.need > 0);
 
-  const plan = planPaycheck({ amount: pay, days, bills, dailySpend, goals, investPct, freeToGoals });
+  // Emergency fund first: an unfinished emergency fund goal is filled before the others.
+  const efGoal = goals.find(g => /emergency/i.test(g.name)) ?? null;
+  const [efFirst, setEfFirst] = useState(data.settings.paycheckEfFirst !== false);
+  const plan = planPaycheck({ amount: pay, days, bills, dailySpend, goals, investPct, freeToGoals, priorityId: efFirst && efGoal ? efGoal.id : null });
+
+  // Moving the goal money for real: one goal deposit per goal, from the account the pay landed in.
+  const assetIds = new Set(data.accounts.filter(a => !a.archived && a.type !== 'credit' && a.type !== 'loan').map(a => a.id));
+  const [fromId, setFromId] = useState<string>(() => {
+    const saved = data.settings.paycheckFromAccount as string | undefined;
+    if (saved && assetIds.has(saved)) return saved;
+    const lastPay = rtx.filter(t => t.type === 'income' && !t.deletedAt && t.accountId && assetIds.has(t.accountId)).sort((a, b) => b.date.localeCompare(a.date))[0];
+    return lastPay?.accountId ?? [...assetIds][0] ?? '';
+  });
+  const fromAcc = data.accounts.find(a => a.id === fromId);
+  const moves = plan.goals.filter(g => g.put > 0).map(g => ({ g, amt: fromAcc && fromAcc.currency !== 'PHP' ? convert(g.put, 'PHP', fromAcc.currency, rates) : g.put }));
+  const moveTotal = plan.goals.reduce((x, g) => x + g.put, 0);
+  const moveNow = () => {
+    if (!fromAcc) return;
+    if (moves.some(m => m.amt === null)) { toast(`Set a ${fromAcc.currency} rate first.`); return; }
+    const have = balances.get(fromAcc.id) ?? 0;
+    const need = moves.reduce((x, m) => x + (m.amt ?? 0), 0);
+    if (need > have) { toast(`${fromAcc.name} has ${money(have, fromAcc.currency)}. Pick another account, or wait for the pay to land.`); return; }
+    const ids: string[] = [];
+    const ok = act(db => db.transaction(tx => {
+      const d = tx as unknown as typeof db;
+      setSetting(d, 'paycheckFromAccount', fromAcc.id);
+      for (const m of moves) {
+        const row = data.goals.find(x => x.id === m.g.id);
+        if (row) ids.push(goalMove(d, row, 'in', fromAcc.id, m.amt!, payDate, `From this pay · ${row.name}`).id);
+      }
+    }), `Moved ${peso(moveTotal, { cents: false })} into ${moves.length} goal${moves.length === 1 ? '' : 's'}`, { label: 'Undo', run: () => act(db => softDelete(db, ids)) });
+    if (ok) router.push({ pathname: '/saved', params: { kind: 'save', ask: '0', amount: `Saved ${peso(moveTotal, { cents: false })}`,
+      title: `${moves.length} goal${moves.length === 1 ? '' : 's'} · from ${fromAcc.name}`, sub: moves.map(m => m.g.name).join(', ') } });
+  };
   const afterEssentials = Math.max(0, pay - plan.needs - plan.dayToDay);
   const parts = [
     { key: 'needs', label: 'Bills due before next pay', value: plan.needs, color: c.spend, icon: 'calendar-alert' },
@@ -66,6 +124,22 @@ export default function PaycheckPlan() {
     { key: 'free', label: 'Free to spend', value: plan.free, color: c.income, icon: 'party-popper' },
   ];
   const saving = plan.share(plan.save + plan.invest);
+  const [guideKey, setGuideKey] = useState<GuideKey>(((data.settings.paycheckGuide as GuideKey) in GUIDES ? data.settings.paycheckGuide : '50/30/20') as GuideKey);
+  const guide = guideSplit(plan, pay, guideKey, est.needShare);
+  const nws = [
+    { k: 'needs' as const, label: 'Needs', sub: 'bills + needs in day-to-day', color: c.blue },
+    { k: 'wants' as const, label: 'Wants', sub: 'wants in day-to-day + free to spend', color: c.magenta },
+    { k: 'save' as const, label: 'Savings', sub: 'goals + investing', color: c.income },
+  ];
+
+  // Needs / wants / savings: this plan next to the split you aim for.
+  const [splitKey, setSplitKey] = useState(String(data.settings.paycheckSplit ?? '50-30-20'));
+  const preset = SPLITS.find(x => x.key === splitKey) ?? SPLITS[0];
+  const needsShare = useMemo(() => needsShareOf(rtx, cats, today), [rtx, cats, today]);
+  const actual = splitOfPlan(plan, needsShare);
+  const target = targetAmounts(pay, preset.target);
+  const toSavings = Math.max(0, target.savings - actual.savings);
+  const fromWants = Math.min(toSavings, Math.max(0, actual.wants - target.wants));
 
   return (
     <Screen title="Paycheck plan" subtitle="Split one pay into what’s spoken for, what to save, and what’s free." back>
@@ -107,6 +181,45 @@ export default function PaycheckPlan() {
             </View>
           </Block>
 
+          <Card style={{ marginTop: 12, gap: 12 }}>
+            <View style={{ gap: 8 }}>
+              <T v="h3">Needs, wants, savings</T>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                {(Object.keys(GUIDES) as GuideKey[]).map(k => <Chip key={k} label={k} selected={guideKey === k} onPress={() => { setGuideKey(k); act(db => setSetting(db, 'paycheckGuide', k)); }} />)}
+              </View>
+            </View>
+            {([['This plan', guide.actual], [`${guideKey} guide`, guide.guide]] as const).map(([label, v]) => (
+              <View key={label} style={{ gap: 6 }}>
+                <T v="label">{label}</T>
+                <View style={{ flexDirection: 'row', height: 26, borderRadius: 9, overflow: 'hidden', gap: 2, backgroundColor: c.sunk }}
+                  accessibilityLabel={`${label}: ${nws.map(n => `${n.label} ${pct(plan.share(v[n.k]))}`).join(', ')}`}>
+                  {nws.filter(n => v[n.k] > 0).map(n => (
+                    <View key={n.k} style={{ flex: v[n.k], backgroundColor: n.color, justifyContent: 'center', alignItems: 'center' }}>
+                      {plan.share(v[n.k]) >= 0.1 ? <T v="label" color="#FFFFFF" style={{ fontSize: 11 }}>{pct(plan.share(v[n.k]))}</T> : null}
+                    </View>
+                  ))}
+                </View>
+              </View>
+            ))}
+            <View style={{ gap: 6 }}>
+              {nws.map(n => (
+                <View key={n.k} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <View style={{ width: 12, height: 12, borderRadius: 4, backgroundColor: n.color }} />
+                  <View style={{ flex: 1 }}><T v="medium">{n.label}</T><T v="small">{n.sub}</T></View>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <T v="num">{peso(guide.actual[n.k], { cents: false })}</T>
+                    <T v="small">{`guide ${peso(guide.guide[n.k], { cents: false })}`}</T>
+                  </View>
+                </View>
+              ))}
+            </View>
+            <T v="small">{guide.note ?? 'Your plan is within 5 points of the guide.'}</T>
+            <T v="small">{est.daily
+              ? `Day-to-day is split ${pct(est.needShare)} needs, ${pct(1 - est.needShare)} wants, going by what you spent in your last ${est.days} days.`
+              : 'Day-to-day counts as needs until there’s some spending history.'}</T>
+            <Button small variant="ghost" icon="tag-multiple-outline" label="Choose which categories are wants" onPress={() => router.push('/categories')} />
+          </Card>
+
           {plan.shortfall > 0 ? (
             <View style={{ marginTop: 12 }}>
               <Note tone="warn" icon="alert-outline">{`This pay is ${peso(plan.shortfall, { cents: false })} short of bills plus day-to-day. Goals and investing are paused in this plan. Move a bill, or lower day-to-day below.`}</Note>
@@ -123,6 +236,42 @@ export default function PaycheckPlan() {
               <Note tone={saving >= 0.2 ? 'good' : 'info'} icon="scale-balance">{`Saving and investing ${pct(saving)} of this pay. A common guide is 20% or more.`}</Note>
             </View>
           )}
+
+          <Section title="Needs, wants and savings">
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {SPLITS.map(x => <Chip key={x.key} label={x.label} selected={splitKey === x.key} onPress={() => { setSplitKey(x.key); act(db => setSetting(db, 'paycheckSplit', x.key)); }} />)}
+            </View>
+            <T v="small" style={{ marginTop: 6 }}>{preset.hint}</T>
+            <Card style={{ marginTop: 10, gap: 12 }}>
+              <SplitBar label="Aim for" split={target} pay={pay} />
+              <SplitBar label="This plan" split={actual} pay={pay} />
+              <View style={{ gap: 8 }}>
+                {([['needs', 'Needs', c.blue, 0], ['wants', 'Wants', c.magenta, 1], ['savings', 'Savings', c.income, 2]] as const).map(([k, l, col, i]) => {
+                  const diff = actual[k] - target[k];
+                  return (
+                    <View key={k} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                      <View style={{ width: 12, height: 12, borderRadius: 4, backgroundColor: col }} />
+                      <View style={{ flex: 1 }}>
+                        <T v="semi">{`${l} · aim ${preset.target[i]}%`}</T>
+                        <T v="small" color={Math.abs(diff) < pay * 0.02 ? c.income : (k === 'savings' ? diff < 0 : diff > 0) ? c.warn : c.muted}>
+                          {Math.abs(diff) < pay * 0.02 ? 'On target' : `${peso(Math.abs(diff), { cents: false })} ${diff > 0 ? 'over' : 'under'} the ${peso(target[k], { cents: false })} aim`}
+                        </T>
+                      </View>
+                      <T v="num">{`${pct(plan.share(actual[k]))} · ${peso(actual[k], { cents: false })}`}</T>
+                    </View>
+                  );
+                })}
+              </View>
+            </Card>
+            <T v="small" style={{ marginTop: 8 }}>{`Needs are bills plus about ${pct(needsShare)} of your day-to-day (groceries, transport, health, family), from how you’ve been spending. Eating out, shopping and fun count as wants. Free money counts as wants until you put it to work.`}</T>
+            {toSavings > 0 ? (
+              <View style={{ marginTop: 8 }}>
+                <Note tone="info" icon="lightbulb-on-outline">{fromWants > 0
+                  ? `To save ${preset.target[2]}%, move ${peso(fromWants, { cents: false })} from wants to savings${freeToGoals ? '' : ': turn on “Put what’s free into goals” below, or raise investing'}.`
+                  : `Savings are ${peso(toSavings, { cents: false })} short of ${preset.target[2]}%, and wants are already within the aim. Needs are taking the room this pay.`}</Note>
+              </View>
+            ) : null}
+          </Section>
 
           <Section title="Bills due before next pay" aside={peso(plan.needs, { cents: false })}>
             {bills.length ? (
@@ -160,6 +309,8 @@ export default function PaycheckPlan() {
                 <T v="small">{`After bills and day-to-day, up to ${peso(afterEssentials, { cents: false })} of this pay could go to goals.`}</T>
                 <Toggle label="Put what’s free into goals" hint="Anything left after investing tops up your goals, split the same way." value={freeToGoals}
                   onChange={(v) => { setFreeToGoals(v); act(db => setSetting(db, 'paycheckFreeToGoals', v)); }} />
+                {efGoal ? <Toggle label={`${efGoal.name} first`} hint="It gets its full share before other goals, and free money tops it up first. Turns itself off in effect once it’s full." value={efFirst}
+                  onChange={(v) => { setEfFirst(v); act(db => setSetting(db, 'paycheckEfFirst', v)); }} /> : null}
               </View>
             ) : null}
           </Section>
@@ -171,8 +322,16 @@ export default function PaycheckPlan() {
             <T v="small" style={{ marginTop: 8 }}>{investPct ? `${peso(plan.wanted.invest, { cents: false })} of this pay, after bills, day-to-day and goals are covered.` : 'Not investing from this pay.'}</T>
           </Section>
 
+          {moves.length ? (
+            <Section title="Move the goal money now">
+              <Select label="From" value={fromId} options={accountOptions.filter(o => assetIds.has(o.value))} onChange={setFromId} />
+              <GradButton label={`Move ${peso(moveTotal, { cents: false })} into ${moves.length} goal${moves.length === 1 ? '' : 's'}`} onPress={moveNow} style={{ marginTop: 12 }} />
+              <T v="small" style={{ marginTop: 8 }}>Records a goal deposit for each goal above, dated {dayLabel(payDate)}. You can undo it right after.</T>
+            </Section>
+          ) : null}
+
           <View style={{ marginTop: 18, backgroundColor: c.sunk, borderRadius: radius.md, padding: 12 }}>
-            <T v="small">Amounts in other currencies are counted in pesos at your saved rates. This plan doesn’t move any money; it shows where each peso should go.</T>
+            <T v="small">Amounts in other currencies are counted in pesos at your saved rates. Nothing moves until you tap Move; bills and investing stay a plan.</T>
           </View>
         </>
       ) : (

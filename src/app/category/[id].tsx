@@ -3,7 +3,8 @@ import { View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useData, safeJson } from '../../data/DataContext';
 import { Button, ColorPicker, ErrorText, Field, Footer, IconBubble, IconPicker, Screen, Segmented, Select, T, Toggle, close } from '../../components/ui';
-import { remove, upsert } from '../../db/repo';
+import { remove, setSetting, upsert } from '../../db/repo';
+import { needOrWant, type NeedWant } from '../../lib/paycheck';
 import { SWATCHES } from '../../lib/seed';
 import { uid } from '../../lib/money';
 
@@ -24,6 +25,9 @@ export default function CategoryScreen() {
   const [keywords, setKeywords] = useState(safeJson<string[]>(cat?.keywords, []).join(', '));
   const [hidden, setHidden] = useState(cat?.archived ?? false);
   const [error, setError] = useState<string | null>(null);
+  // Need or want: used to split day-to-day spending in the Paycheck plan's needs / wants / savings guide.
+  const mine = (data.settings.nwClass as Record<string, NeedWant> | undefined) ?? {};
+  const [nw, setNw] = useState<NeedWant>(() => needOrWant(cat?.id ?? (parentId || null), data.categories, mine));
   const hasChildren = cat ? data.categories.some(x => x.parentId === cat.id) : false;
   const used = cat ? data.transactions.filter(t => t.categoryId === cat.id).length : 0;
   const parentOptions = [{ value: '', label: 'None (top level)' },
@@ -35,7 +39,11 @@ export default function CategoryScreen() {
     if (hasChildren && parentId) return setError('A category with subcategories can’t go inside another one.');
     const kw = keywords.split(',').map(k => k.trim().toLowerCase()).filter(Boolean);
     const row = { id: cat?.id ?? uid(), kind, name: name.trim(), parentId: parentId || null, color, icon, keywords: JSON.stringify(kw), archived: hidden, sort: cat?.sort ?? data.categories.length };
-    if (act(db => upsert.category(db, row), cat ? 'Saved changes' : `Added ${row.name}`)) close();
+    const inherited = needOrWant(row.parentId, data.categories, mine);
+    const nextNw = { ...mine };
+    // Store only when it differs from what it would inherit, so changing a parent still flows down.
+    if (kind === 'expense' && (nw !== inherited || mine[row.id])) nextNw[row.id] = nw;
+    if (act(db => { upsert.category(db, row); if (nextNw[row.id] !== mine[row.id]) setSetting(db, 'nwClass', nextNw); }, cat ? 'Saved changes' : `Added ${row.name}`)) close();
   };
 
   return (
@@ -45,6 +53,13 @@ export default function CategoryScreen() {
         <View style={{ gap: 16 }}>
           {!cat ? <Segmented value={kind} onChange={(v) => { setKind(v); setParentId(''); }} options={[['expense', 'Spending'], ['income', 'Income']]} /> : null}
           <Field label="Name" value={name} onChangeText={setName} placeholder="e.g. Pets" maxLength={40} />
+          {kind === 'expense' ? (
+            <View style={{ gap: 6 }}>
+              <T v="label">Is this a need or a want?</T>
+              <Segmented value={nw} onChange={setNw} options={[['need', 'Need', 'home-outline'], ['want', 'Want', 'party-popper']]} />
+              <T v="small">Used by the Paycheck plan to split day-to-day spending. Subcategories follow unless you set them.</T>
+            </View>
+          ) : null}
           <Select label="Inside" value={parentId} options={parentOptions} onChange={setParentId} />
           <IconPicker value={icon} icons={CATEGORY_ICONS} color={color} onChange={setIcon} />
           <ColorPicker value={color} colors={SWATCHES} onChange={setColor} />
