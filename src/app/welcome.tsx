@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Animated, Easing, Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
+import { Animated, Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useData } from '../data/DataContext';
 import { Icon, T } from '../components/ui';
-import { NightGradient, OnNightPill, Senti, useLoop, useReduceMotion } from '../components/k';
+import { NightGradient, OnNightPill, SentiPosed, useReduceMotion } from '../components/k';
+import { LEAN_MS, WALK_MS, walkFrame } from '../lib/walk';
 import { Logo } from '../components/Logo';
 import { applySeed } from '../db/repo';
 import { emptySetup, mySetup } from '../lib/seed';
@@ -57,8 +58,9 @@ export default function Welcome() {
 }
 
 /**
- * The logo, then Senti walks in from the right, stops beside it, folds his arms and leans on it.
- * With Reduce motion he's simply there, leaning.
+ * The logo, then Senti walks in from the right: knees bend, arms swing, body bobs over the planted foot,
+ * and the steps slow as he does. He stops beside the logo, crosses one leg over, folds his arms and
+ * leans on it. Each frame is computed (src/lib/walk.ts) and drawn as one SVG. Reduce motion: he's just there.
  */
 function WalkIn({ width }: { width: number }) {
   const reduce = useReduceMotion();
@@ -66,43 +68,37 @@ function WalkIn({ width }: { width: number }) {
   const stageH = Math.max(logo, senti * 1.25) + 4;
   const logoLeft = Math.max(0, width / 2 - logo + 4);
   const restLeft = logoLeft + logo - senti * 0.2; // overlaps the tile's edge so he leans on it
-  const [phase, setPhase] = useState<'walk' | 'lean'>(reduce ? 'lean' : 'walk');
-  const [v] = useState(() => ({ x: new Animated.Value(reduce ? 0 : width - restLeft + 20), lean: new Animated.Value(reduce ? 1 : 0), pop: new Animated.Value(reduce ? 1 : 0) }));
-  const step = useLoop(420, phase === 'walk' && !reduce, 0, Easing.linear);
+  const distance = Math.max(60, width - restLeft + 20);
+  const stepPx = senti * 0.3; // roughly one stride of his legs at this size
+  const [pop] = useState(() => new Animated.Value(0));
+  const [ms, setMs] = useState(-1); // -1: not walking yet
 
   useEffect(() => {
     if (reduce) return;
-    const run = Animated.sequence([
-      Animated.spring(v.pop, { toValue: 1, stiffness: 300, damping: 16, mass: 1, useNativeDriver: true }),
-      Animated.delay(150),
-      Animated.timing(v.x, { toValue: 0, duration: 1900, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-    ]);
-    run.start(({ finished }) => {
-      if (!finished) return;
-      setPhase('lean');
-      Animated.spring(v.lean, { toValue: 1, stiffness: 160, damping: 12, mass: 1, useNativeDriver: true }).start();
-    });
-    return () => run.stop();
-  }, [reduce, v]);
+    Animated.spring(pop, { toValue: 1, stiffness: 300, damping: 16, mass: 1, useNativeDriver: true }).start();
+    let raf = 0;
+    const start = Date.now() + 550; // after the logo pops
+    const tick = () => {
+      const t = Date.now() - start;
+      if (t >= 0) setMs(t);
+      if (t < WALK_MS + LEAN_MS + 50) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [reduce, pop]);
 
-  const walking = phase === 'walk';
+  const f = walkFrame(reduce ? WALK_MS + LEAN_MS : Math.max(0, ms), distance, stepPx);
+  const hidden = !reduce && ms < 0;
   return (
     <View style={{ height: stageH, width }} accessible accessibilityRole="image" accessibilityLabel="Cynct logo with Senti leaning on it, arms crossed">
-      <Animated.View style={{ position: 'absolute', left: logoLeft, bottom: 0, transform: [{ scale: v.pop }] }}>
+      <Animated.View style={{ position: 'absolute', left: logoLeft, bottom: 0, transform: [{ scale: reduce ? 1 : pop }] }}>
         <Logo size={logo} bg="#1E1647" />
       </Animated.View>
-      <Animated.View style={{ position: 'absolute', left: restLeft, bottom: 0, width: senti, height: senti * 1.25, transformOrigin: '50% 96%',
-        transform: [
-          { translateX: v.x },
-          // A little bob with each step while walking.
-          { translateY: walking ? step.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0, -5, 0] }) : 0 },
-          { rotate: v.lean.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '-11deg'] }) },
-        ] }}>
-        <Senti size={senti} face="smile" arms={walking ? 'rest' : 'crossed'}
-          legs={walking ? step.interpolate({ inputRange: [0, 1], outputRange: ['-14deg', '14deg'] }) : undefined}
-          left={walking ? step.interpolate({ inputRange: [0, 1], outputRange: ['16deg', '-16deg'] }) : undefined}
-          right={walking ? step.interpolate({ inputRange: [0, 1], outputRange: ['-16deg', '16deg'] }) : undefined} />
-      </Animated.View>
+      {hidden ? null : (
+        <View style={{ position: 'absolute', left: restLeft, bottom: 0, transform: [{ translateX: f.offset }] }}>
+          <SentiPosed size={senti} pose={f.pose} lean={f.lean} />
+        </View>
+      )}
     </View>
   );
 }

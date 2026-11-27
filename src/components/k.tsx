@@ -5,6 +5,7 @@ import React, { useEffect, useId, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing, Pressable, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import Svg, { Circle, ClipPath, Defs, Ellipse, G, LinearGradient, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { jarShape, pile } from '../lib/jar';
+import { sentiShapes, type Pose, type Shape } from '../lib/walk';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fonts, useTheme } from '../theme';
@@ -187,6 +188,22 @@ export function Senti({ size = 110, face = 'smile', arms = 'rest', left, right, 
       ) : null}
     </View>
   );
+}
+
+/** Senti drawn from a computed pose (the Welcome walk-in), one SVG redrawn each frame. */
+export function SentiPosed({ size = 110, pose, lean = 0, onNight = true }: { size?: number; pose: Pose; lean?: number; onNight?: boolean }) {
+  const { transform, shapes } = sentiShapes(pose, lean, -1, onNight ? 'rgba(231,224,255,0.45)' : undefined);
+  return (
+    <Svg width={size} height={size * 1.25} viewBox="0 0 160 200" pointerEvents="none">
+      <G transform={transform}>{shapes.map(shape)}</G>
+    </Svg>
+  );
+}
+
+function shape(x: Shape, i: number) {
+  if (x.t === 'path') return <Path key={i} d={x.d} stroke={x.stroke} strokeWidth={x.sw} fill={x.fill ?? 'none'} strokeLinecap="round" opacity={x.op} />;
+  if (x.t === 'circle') return <Circle key={i} cx={x.cx} cy={x.cy} r={x.r} fill={x.fill} stroke={x.stroke} strokeWidth={x.sw} strokeDasharray={x.dash} opacity={x.op} />;
+  return <Ellipse key={i} cx={x.cx} cy={x.cy} rx={x.rx} ry={x.ry} fill={x.fill} transform={x.rot ? `rotate(${x.rot.toFixed(1)} ${x.cx.toFixed(1)} ${x.cy.toFixed(1)})` : undefined} />;
 }
 
 /** Senti tumbling backwards: arms flung up, legs kicked forward, mouth in an "o". Flails while `flail` runs. */
