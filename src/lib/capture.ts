@@ -43,6 +43,8 @@ export function parseAmount(s: string): { amount: number; currency: string } | n
 /** "Rogelio Bocboc G-Xchange, Inc (GCash) 0••••3797." → who Rogelio Bocboc, via GCash, tail 3797 */
 export function splitParty(raw: string): { who: string | null; via: string | null; tail: string | null } {
   let s = raw.trim().replace(/[.\s]+$/, '');
+  // A plain phone number ("+639672589889") is the person's own handle: keep it whole, its last 4 digits are the tail.
+  if (/^\+?\d[\d\s-]{9,}$/.test(s)) return { who: s, via: null, tail: s.replace(/\D/g, '').slice(-4) };
   const tailM = s.match(/\s*[0-9]?[•*xX·]{2,}\s?(\d{3,4})$/);
   const tail = tailM ? tailM[1] : null;
   if (tailM) s = s.slice(0, tailM.index).trim();

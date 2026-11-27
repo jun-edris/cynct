@@ -1,24 +1,17 @@
 import React, { useState } from 'react';
-import { ActivityIndicator, Image, Platform, View } from 'react-native';
+import { ActivityIndicator, Image, View } from 'react-native';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { useData } from '../data/DataContext';
 import { radius, useTheme } from '../theme';
 import { Button, Card, Chip, DateField, Empty, Field, Note, Screen, Section, Select, T } from '../components/ui';
 import { keepPhoto, useAccountOptions, useCategoryOptions } from '../components/domain';
-import { guessCategory, parseReceipt, rowsFromLines, type OcrLine, type ReceiptGuess } from '../lib/receipt';
+import { guessCategory, parseReceipt, type ReceiptGuess } from '../lib/receipt';
+import { ocrSupported, readText } from '../data/ocr';
 import { inputValue, peso, todayISO, toCentavos } from '../lib/money';
 
-// On-device text reading (Google ML Kit, model bundled in the app, so it works offline from the first scan).
-// Loaded lazily: the native module doesn't exist in the web preview.
-const isSupported = Platform.OS !== 'web';
-async function readReceipt(uri: string): Promise<string[]> {
-  const { recognizeText } = await import('@infinitered/react-native-mlkit-text-recognition');
-  const res = await recognizeText(uri);
-  const lines: OcrLine[] = res.blocks.flatMap(b => b.lines.map(l => ({ text: l.text, frame: l.frame })));
-  // Rebuild printed rows from positions; fall back to plain blocks if positions are missing.
-  return lines.length ? rowsFromLines(lines) : res.blocks.map(b => b.text);
-}
+const isSupported = ocrSupported;
+const readReceipt = readText;
 
 export default function Scan() {
   const { c } = useTheme();

@@ -1,12 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { AppState, Pressable, View } from 'react-native';
+import { ActivityIndicator, AppState, Pressable, View } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import Capture from '../../modules/cynct-capture';
 import { useData } from '../data/DataContext';
 import { radius, useTheme } from '../theme';
 import { Button, Card, Chip, Field, Icon, IconBubble, List, Note, Row, Screen, Section, Sheet, T, Toggle, formatTime } from '../components/ui';
-import { setCaptured, setSetting } from '../db/repo';
-import { APPS, type Draft } from '../lib/capture';
+import { addCaptured, setCaptured, setSetting } from '../db/repo';
+import { APPS, parseCapture, type CaptureRow, type Draft } from '../lib/capture';
+import { alreadyKnown, parseMayaScreen, screenToCapture } from '../lib/screenshot';
+import { ocrSupported, readText } from '../data/ocr';
 import { accessOn, addDraft, captureSupported, draftsFrom, readCapture, resolveDraft, type CapturePrefs } from '../data/capture';
 import { money } from '../lib/currency';
 import { dayLabel, todayISO } from '../lib/money';
@@ -69,8 +72,32 @@ function DraftCard({ d, prefs }: { d: Draft; prefs: CapturePrefs }) {
 
 export default function CaptureScreen() {
   const { c } = useTheme();
-  const { data, act } = useData();
+  const { data, act, toast } = useData();
   const prefs = readCapture(data.settings);
+  const [reading, setReading] = useState<string | null>(null);
+
+  // Payments that never sent a notification: read Maya's transaction screens from screenshots.
+  const importShots = async () => {
+    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsMultipleSelection: true, selectionLimit: 30, quality: 1 });
+    if (res.canceled || !res.assets.length) return;
+    const rows: CaptureRow[] = [];
+    let dup = 0, unread = 0;
+    for (const [i, a] of res.assets.entries()) {
+      setReading(`Reading ${i + 1} of ${res.assets.length}…`);
+      try {
+        const s = parseMayaScreen(await readText(a.uri));
+        const row = s ? screenToCapture(s) : null;
+        const p = row ? parseCapture(row) : null;
+        if (!row || !p) { unread++; continue; }
+        if (alreadyKnown(p, [...data.captured, ...rows], data.transactions)) { dup++; continue; }
+        rows.push(row);
+      } catch { unread++; }
+    }
+    setReading(null);
+    const parts = [rows.length ? `${rows.length} to review` : null, dup ? `${dup} already in Cynct` : null, unread ? `${unread} couldn’t be read` : null].filter(Boolean);
+    if (rows.length) act(db => { addCaptured(db, rows); }, parts.join(' · '));
+    else toast(parts.join(' · ') || 'Nothing found');
+  };
   const [, tick] = useState(0);
   const [linking, setLinking] = useState<string | null>(null);
   const [name, setName] = useState('');
@@ -114,6 +141,21 @@ export default function CaptureScreen() {
           ) : null}
         </Card>
       )}
+
+      {ocrSupported ? (
+        <Card style={{ gap: 10, marginTop: 12 }}>
+          <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
+            <IconBubble icon="cellphone-screenshot" color={c.info} size={40} />
+            <View style={{ flex: 1 }}>
+              <T v="semi">Missed a Maya payment?</T>
+              <T v="small">Pick screenshots of Maya’s transaction screens. They’re read on this phone and added below for you to check.</T>
+            </View>
+          </View>
+          {reading ? (
+            <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}><ActivityIndicator color={c.mango} /><T v="medium">{reading}</T></View>
+          ) : <Button variant="secondary" icon="image-multiple-outline" label="Import screenshots" onPress={importShots} />}
+        </Card>
+      ) : null}
 
       <Section title="To review" aside={drafts.length ? String(drafts.length) : undefined}>
         {drafts.length ? <View style={{ gap: 12 }}>{drafts.map(d => <DraftCard key={d.id} d={d} prefs={prefs} />)}</View>
