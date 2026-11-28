@@ -5,6 +5,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useData } from '../data/DataContext';
 import { radius, useTheme } from '../theme';
 import { Button, Card, Chip, DateField, Empty, Field, Note, Screen, Section, Select, T } from '../components/ui';
+import { Spot } from '../components/tour';
 import { keepPhoto, useAccountOptions, useCategoryOptions } from '../components/domain';
 import { guessCategory, parseReceipt, type ReceiptGuess } from '../lib/receipt';
 import { ocrSupported, readText } from '../data/ocr';
@@ -67,15 +68,15 @@ export default function Scan() {
   const amt = toCentavos(amount || '0');
 
   return (
-    <Screen title="Scan receipt" subtitle="Reads the total, date and store on your phone. Nothing is uploaded." back>
+    <Screen title="Scan receipt" subtitle="Reads the total, date and store on your phone. Nothing is uploaded." back tour="scan">
       {!isSupported ? (
         <Note tone="warn" icon="cellphone-off">{'Receipt reading works in the phone app, not in this preview.'}</Note>
       ) : null}
 
-      <View style={{ flexDirection: 'row', gap: 10, marginTop: isSupported ? 0 : 14 }}>
+      <Spot id="scan.pick" style={{ flexDirection: 'row', gap: 10, marginTop: isSupported ? 0 : 14 }}>
         <Button icon="camera-outline" label="Take photo" onPress={() => pick(true)} style={{ flex: 1 }} disabled={busy || !isSupported} />
         <Button icon="image-outline" variant="secondary" label="From photos" onPress={() => pick(false)} style={{ flex: 1 }} disabled={busy || !isSupported} />
-      </View>
+      </Spot>
       <T v="small" style={{ marginTop: 8 }}>Lay the receipt flat, fill the frame, avoid shadows. The first scan may take a few seconds while your phone sets up text reading.</T>
 
       {busy ? (

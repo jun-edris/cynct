@@ -6,6 +6,7 @@ import { useData } from '../data/DataContext';
 import { useTheme } from '../theme';
 import { KHeader, KSheet, OnNight } from '../components/k';
 import { Button, Card, Icon, List, Row, Screen, Section, Segmented, Select, Sheet, T, Toggle } from '../components/ui';
+import { readTours } from '../lib/tours';
 import { useAccountOptions } from '../components/domain';
 import { canUseBiometrics } from '../components/LockGate';
 import { setSetting, wipeAll } from '../db/repo';
@@ -22,6 +23,7 @@ export default function Settings() {
   const [confirm, setConfirm] = useState<Confirm>(null);
   const accountOptions = [{ value: '', label: 'None', icon: 'minus' }, ...useAccountOptions()];
   const folder = data.settings.backupFolderUri as string | undefined;
+  const tours = readTours(data.settings);
   const lastManual = data.settings.lastManualBackup as number | undefined;
   const theme = ((data.settings.theme as string) ?? 'system') as 'system' | 'light' | 'dark';
 
@@ -70,6 +72,15 @@ export default function Settings() {
             options={['0', '100', '300', '500', '1000', '999999'].map(v => ({ value: v, label: v === '0' ? 'Every spend' : v === '999999' ? 'Never' : `₱${Number(v).toLocaleString('en-PH')} or more` }))}
             onChange={(v) => act(d => setSetting(d, 'worthMin', Number(v)))} />
         </View>
+      </Section>
+
+      <Section title="Tips">
+        <Card style={{ gap: 12 }}>
+          <Toggle label="Show tips on screens I haven’t opened" hint="Senti walks you through a screen the first time you open it. Every screen with tips also has a ? button at the top."
+            value={tours.auto} onChange={(v) => act(db => setSetting(db, 'tours', { ...tours, auto: v }), v ? 'Tips on' : 'Tips off')} />
+          <Button small variant="secondary" icon="restart" label="Show all tips again"
+            onPress={() => act(db => setSetting(db, 'tours', { auto: true, seen: [] }), 'Tips will show again on each screen')} />
+        </Card>
       </Section>
 
       <Section title="Reports">

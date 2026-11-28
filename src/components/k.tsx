@@ -318,29 +318,28 @@ export function OnNight({ children, v = 'sm', style }: { children: React.ReactNo
 }
 
 // ---------- coin jar ----------
-/** A plain ₱ coin seen at an angle: Senti without his face, with its edge showing. `tilt` is height/width. */
+/** A plain ₱ coin seen at an angle, drawn like Senti: flat amber, ink outline, dashed inner ring. `tilt` is height/width. */
 function TiltCoin({ x, y, r, rot, tilt }: { x: number; y: number; r: number; rot: number; tilt: number }) {
-  const ry = r * tilt, t = r * 0.24;
+  const ry = r * tilt, t = r * 0.22, sw = Math.max(1.1, r * 0.11);
   return (
     <G transform={`rotate(${rot} ${x} ${y})`}>
-      <Path d={`M${x - r} ${y} L${x - r} ${y + t} A${r} ${ry} 0 0 0 ${x + r} ${y + t} L${x + r} ${y} Z`} fill="#D98A0C" stroke={INK} strokeWidth={1.2} />
-      <Ellipse cx={x} cy={y} rx={r} ry={ry} fill={COIN} stroke={INK} strokeWidth={1.2} />
-      <Ellipse cx={x} cy={y} rx={r * 0.66} ry={ry * 0.66} fill="none" stroke="#C77700" strokeWidth={1.3} />
-      <Ellipse cx={x - r * 0.35} cy={y - ry * 0.35} rx={r * 0.22} ry={ry * 0.2} fill="#FFFFFF" opacity={0.6} />
+      <Path d={`M${x - r} ${y} L${x - r} ${y + t} A${r} ${ry} 0 0 0 ${x + r} ${y + t} L${x + r} ${y} Z`} fill="#E0890A" stroke={INK} strokeWidth={sw} strokeLinejoin="round" />
+      <Ellipse cx={x} cy={y} rx={r} ry={ry} fill={COIN} stroke={INK} strokeWidth={sw} />
+      <Ellipse cx={x} cy={y} rx={r * 0.7} ry={ry * 0.7} fill="none" stroke={INK} strokeWidth={sw * 0.5} strokeDasharray={`${r * 0.1} ${r * 0.15}`} opacity={0.55} />
     </G>
   );
 }
 
 /**
- * An open glass jar holding a heap of faceless ₱ coins, fuller as a goal fills up. The top few coins drop
- * in through the mouth, tumbling, when it appears (skipped with Reduce motion). Coins are clipped to the
- * glass, so nothing can sit outside it.
+ * A no-neck glass jar holding a heap of faceless ₱ coins, fuller as a goal fills up, drawn in Senti's
+ * style. The top few coins drop in, tumbling, when it appears (skipped with Reduce motion). Coins are
+ * clipped to the glass, so nothing can sit outside it. The label is a paper tag taped near the top.
  */
-export function CoinJar({ pct, width = 150, label, onDark = true }: { pct: number; width?: number; label?: string; onDark?: boolean }) {
+export function CoinJar({ pct, width = 150, label }: { pct: number; width?: number; label?: string; onDark?: boolean }) {
   const reduce = useReduceMotion();
   const j = jarShape(width);
   const { W, H } = j;
-  const glass = onDark ? '#FFFFFF' : INK;
+  const sw = Math.max(2.4, W * 0.024);
   const clip = useId().replace(/[^a-zA-Z0-9]/g, '');
   const p = Math.max(0, Math.min(1, pct));
   const heap = pile(j, p);
@@ -350,27 +349,29 @@ export function CoinJar({ pct, width = 150, label, onDark = true }: { pct: numbe
   const fallIds = new Set(order.slice(0, animN).map(o => o.i));
   const still = heap.coins.filter((_, i) => !fallIds.has(i));
   const falling = heap.coins.filter((_, i) => fallIds.has(i));
+  const hx = j.left + W * 0.08;
 
   return (
     <View style={{ width: W, height: H }} accessible accessibilityRole="image" accessibilityLabel={`Coin jar ${Math.round(p * 100)}% full${label ? `, goal ${label}` : ''}`}>
       <Svg width={W} height={H} style={{ position: 'absolute' }}>
         <Defs><ClipPath id={clip}><Path d={j.body} /></ClipPath></Defs>
-        <Path d={j.body} fill={glass} opacity={0.08} />
+        <Ellipse cx={W / 2} cy={j.bottom + H * 0.02} rx={(j.right - j.left) * 0.52} ry={H * 0.025} fill="#000000" opacity={0.18} />
+        <Path d={j.body} fill="#E7E0FF" opacity={0.28} />
         <G clipPath={`url(#${clip})`}>{still.map((c, i) => <TiltCoin key={i} x={c.x} y={c.y} r={heap.r} rot={c.rot} tilt={c.tilt} />)}</G>
       </Svg>
       {falling.map((c, i) => <FallingCoin key={i} cx={W / 2} x={c.x} y={c.y} r={heap.r} rot={c.rot} tilt={c.tilt} delay={250 + i * 180} />)}
       <Svg width={W} height={H} style={{ position: 'absolute' }} pointerEvents="none">
-        <Path d={j.body} fill="none" stroke={glass} strokeWidth={2.5} opacity={0.75} />
-        <Path d={`M${j.left + W * 0.07} ${j.bodyY + j.rad} L${j.left + W * 0.07} ${j.bottom - j.rad * 1.4}`} stroke={glass} strokeWidth={3} strokeLinecap="round" opacity={0.35} />
-        <Rect x={j.rimX} y={j.rimY} width={j.rimW} height={j.rimH} rx={j.rimH / 2.4} fill={onDark ? 'rgba(255,255,255,0.18)' : 'rgba(23,18,45,0.12)'} stroke={glass} strokeWidth={2} strokeOpacity={0.75} />
+        <Path d={j.body} fill="none" stroke={INK} strokeWidth={sw} strokeLinejoin="round" />
+        <Path d={`M${hx} ${j.bodyY + H * 0.1} Q${hx - W * 0.015} ${j.bodyY + H * 0.3} ${hx} ${j.bodyY + H * 0.48}`} stroke="#FFFFFF" strokeWidth={sw * 1.6} strokeLinecap="round" fill="none" opacity={0.8} />
+        <Rect x={j.rimX} y={j.rimY} width={j.rimW} height={j.rimH} rx={j.rimH * 0.36} fill="#E7E0FF" stroke={INK} strokeWidth={sw} />
       </Svg>
       {label ? (
-        // A paper label stuck across the middle of the glass, held by a strip of tape.
-        <View pointerEvents="none" style={{ position: 'absolute', left: W * 0.14, right: W * 0.14, top: H * 0.4, alignItems: 'center' }}>
-          <View style={{ alignSelf: 'stretch', backgroundColor: '#FFFFFF', borderRadius: 6, borderWidth: 1.5, borderColor: INK, paddingVertical: W * 0.035, alignItems: 'center' }}>
-            <Text style={{ fontFamily: fonts.numBlack, fontSize: Math.max(13, W * 0.12), color: INK, letterSpacing: -0.5 }} numberOfLines={1} adjustsFontSizeToFit>{label}</Text>
+        // A paper tag taped near the top of the glass; the pile rises up under it.
+        <View pointerEvents="none" style={{ position: 'absolute', left: 0, right: 0, top: j.bodyY + (j.bottom - j.bodyY) * 0.2, alignItems: 'center' }}>
+          <View style={{ backgroundColor: '#FFFFFF', borderRadius: W * 0.05, borderWidth: sw * 0.8, borderColor: INK, paddingVertical: W * 0.025, paddingHorizontal: W * 0.06, maxWidth: W * 0.7 }}>
+            <Text style={{ fontFamily: fonts.numBlack, fontSize: Math.max(12, W * 0.1), color: INK, letterSpacing: -0.4 }} numberOfLines={1} adjustsFontSizeToFit>{label}</Text>
           </View>
-          <View style={{ position: 'absolute', top: -W * 0.03, width: W * 0.12, height: W * 0.07, backgroundColor: COIN, borderWidth: 1.2, borderColor: INK, borderRadius: 2 }} />
+          <View style={{ position: 'absolute', top: -W * 0.035, width: W * 0.11, height: W * 0.06, backgroundColor: COIN, borderWidth: sw * 0.55, borderColor: INK, borderRadius: 2 }} />
         </View>
       ) : null}
     </View>

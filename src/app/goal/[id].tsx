@@ -4,6 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useData, safeJson } from '../../data/DataContext';
 import { radius, useTheme } from '../../theme';
 import { CoinJar, GlassIcon, KHeader, KSheet, OnNight } from '../../components/k';
+import { Spot, TourHelp } from '../../components/tour';
 import { Button, Card, DateField, Empty, ErrorText, Field, List, Row, Screen, Section, Select, Sheet, StatTile, T } from '../../components/ui';
 import { TxRow, useAccountOptions } from '../../components/domain';
 import { goalProgress } from '../../lib/ledger';
@@ -63,8 +64,9 @@ export default function GoalDetail() {
   };
 
   return (
-    <Screen headerless edge>
+    <Screen headerless edge tour="goal">
       <KHeader title={g.name} back right={<>
+        <TourHelp id="goal" />
         <GlassIcon name="pencil-outline" label="Edit goal" onPress={() => router.push(`/goal-edit/${g.id}`)} />
         <GlassIcon name="trash-can-outline" label="Delete goal" onPress={del} />
       </>}>
@@ -72,17 +74,18 @@ export default function GoalDetail() {
         <T v="display" color="#FFFFFF" style={{ fontSize: 46, lineHeight: 54 }} numberOfLines={1}>{peso(p.saved)}</T>
         <OnNight v="xs">of {peso(g.target, { cents: false })} · {Math.round(p.pct * 1000) / 10}%</OnNight>
         <View style={{ alignItems: 'center', marginTop: 12 }}>
-          <CoinJar pct={p.pct} width={170} label={compactPeso(g.target)} />
+          <Spot id="goal.jar"><CoinJar pct={p.pct} width={170} label={compactPeso(g.target)} /></Spot>
         </View>
       </KHeader>
       <KSheet>
       {g.photoUri ? <Image source={{ uri: g.photoUri }} style={{ width: '100%', height: 160, borderRadius: radius.xl, marginBottom: 12 }} /> : null}
 
-      <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+      <Spot id="goal.actions" style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
         <Button icon="plus" label="Add money" onPress={() => setMove('in')} style={{ flex: 1 }} />
         <Button icon="arrow-u-left-top" variant="secondary" label="Withdraw" onPress={() => setMove('out')} style={{ flex: 1 }} disabled={p.fund <= 0} />
-      </View>
+      </Spot>
 
+      <Spot id="goal.stats">
       <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
         <StatTile label="Left to save" value={compactPeso(p.left)} />
         <StatTile label={p.months < 1 ? 'Needed by deadline' : 'Needed monthly'} value={compactPeso(p.needed)} color={p.onTrack ? c.income : c.warn} sub={`plan ${compactPeso(g.monthly)}`} />
@@ -91,6 +94,7 @@ export default function GoalDetail() {
         <StatTile label="Interest earned" value={compactPeso(p.interest)} color={c.income} sub={g.annualRate ? `${g.annualRate / 100}% a year, monthly` : 'No rate set'} />
         <StatTile label="Projected" value={compactPeso(p.projected)} sub={`by ${dayLabel(g.deadline)}`} />
       </View>
+      </Spot>
 
       <Section title="Details">
         <Card style={{ gap: 10 }}>

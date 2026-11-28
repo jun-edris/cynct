@@ -16,9 +16,9 @@ const AMOUNT = /^([-+−–])?\s*(?:₱|PHP|P)\s?(\d{1,3}(?:,\d{3})+(?:\.\d{2})?
 const DATE = /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+(\d{1,2}),?\s+(\d{4}),?\s+(\d{1,2}):(\d{2})\s*([AP]M)?/i;
 const REF = /\b([0-9A-Z]{4}\s[0-9A-Z]{4}\s[0-9A-Z]{4})\b/;
 const STATUS = /\b(completed|successful|pending|processing|failed|cancell?ed|declined|reversed)\b/i;
-const LABEL = /^(reference id|payment id|share|get help|maya|details?)\b/i;
+const LABEL = /^(reference id|payment id|share|get help|maya|details?|the reserved authorization|amount once)\b/i;
 const TITLES: { re: RegExp; kind: ScreenTx['kind']; dir: 'in' | 'out' | null }[] = [
-  { re: /purchased on|paid (?:to|at|for)|bought|payment to/i, kind: 'purchase', dir: 'out' },
+  { re: /purchased? on|approved purchase|paid (?:to|at|for)|bought|payment to/i, kind: 'purchase', dir: 'out' },
   { re: /sent money to|transferred to|send money|bank transfer/i, kind: 'send', dir: 'out' },
   { re: /received (?:money )?from|money received|cash ?in|added money/i, kind: 'receive', dir: 'in' },
 ];
@@ -31,13 +31,16 @@ function clean(s: string): string {
   }).join(' ').trim();
 }
 
-/** Null when the text isn't a completed Maya transaction screen. */
+/**
+ * Null when the text isn't a Maya transaction screen, or the payment didn't go through. A card purchase shows
+ * "Processing" until the merchant settles it (sometimes days); the money has already left, so it counts.
+ */
 export function parseMayaScreen(rawLines: string[]): ScreenTx | null {
   const lines = rawLines.map(l => l.replace(/\s+/g, ' ').trim()).filter(Boolean);
   const all = lines.join('\n');
   if (!/\bmaya\b/i.test(all) && !/reference id/i.test(all)) return null;
   const st = all.match(STATUS);
-  if (st && !/completed|successful/i.test(st[1])) return null;
+  if (st && /failed|cancell?ed|declined|reversed/i.test(st[1])) return null;
 
   const titleHit = TITLES.find(t => t.re.test(all));
   const title = titleHit ? (lines.find(l => titleHit.re.test(l)) ?? '').replace(/^\W+/, '') : '';

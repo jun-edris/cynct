@@ -6,6 +6,7 @@ import { useData } from '../data/DataContext';
 import { useTheme } from '../theme';
 import { Chip, Empty, Icon, Screen, T } from '../components/ui';
 import { SentiBadge } from '../components/k';
+import { Spot } from '../components/tour';
 import { haptic } from '../components/motion';
 import { draftsFrom, readCapture, type CapturePrefs } from '../data/capture';
 import { appName, useDraft, when } from '../data/useDraft';
@@ -22,7 +23,7 @@ export default function Sort() {
   const d = drafts[0];
 
   return (
-    <Screen title="Sort your payments" subtitle={d ? `${done + 1} of ${Math.max(total, drafts.length)} · from your notifications and screenshots` : undefined} back padBottom={30}>
+    <Screen title="Sort your payments" subtitle={d ? `${done + 1} of ${Math.max(total, drafts.length)} · from your notifications and screenshots` : undefined} back padBottom={30} tour="sort">
       <View style={{ height: 6, borderRadius: 3, backgroundColor: c.sunk, overflow: 'hidden' }}>
         <View style={{ width: `${total ? (done / total) * 100 : 100}%`, height: '100%', backgroundColor: c.mango, borderRadius: 3 }} />
       </View>
@@ -87,7 +88,7 @@ function Deck({ d, prefs, more }: { d: Draft; prefs: CapturePrefs; more: number 
 
   return (
     <View style={{ marginTop: 22 }}>
-      <View style={{ height: 440 }}>
+      <Spot id="sort.card" style={{ height: 440 }}>
         {more > 1 ? <View style={{ position: 'absolute', left: 18, right: 18, top: 24, bottom: -16, borderRadius: 32, backgroundColor: c.tMagenta, transform: [{ rotate: '4deg' }] }} /> : null}
         {more > 0 ? <View style={{ position: 'absolute', left: 8, right: 8, top: 12, bottom: -6, borderRadius: 32, backgroundColor: c.tBlue, transform: [{ rotate: '-3deg' }] }} /> : null}
         <Animated.View {...pan.panHandlers} style={{ position: 'absolute', inset: 0, borderRadius: 32, padding: 22, backgroundColor: c.surface,
@@ -126,13 +127,13 @@ function Deck({ d, prefs, more }: { d: Draft; prefs: CapturePrefs; more: number 
             </>
           ) : null}
         </Animated.View>
-      </View>
+      </Spot>
       <T v="small" center style={{ marginTop: 28 }}>Swipe right to add · left to skip</T>
-      <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 18, marginTop: 12 }}>
+      <Spot id="sort.buttons" style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 18, marginTop: 12 }}>
         <RoundButton size={64} icon="close" label="Skip" onPress={doSkip} outline />
         <RoundButton size={52} icon="pencil-outline" label="Edit" onPress={() => edit()} />
         <RoundButton size={80} icon="check" label={planRow ? 'Mark done' : 'Add'} onPress={doAdd} grad />
-      </View>
+      </Spot>
     </View>
   );
 }

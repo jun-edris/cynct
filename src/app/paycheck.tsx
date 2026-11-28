@@ -4,6 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useData, safeJson } from '../data/DataContext';
 import { radius, useTheme } from '../theme';
 import { Button, Card, Chip, DateField, Field, Icon, List, Note, Row, Screen, Section, Select, T, Toggle } from '../components/ui';
+import { Spot } from '../components/tour';
 import { GradButton, NightGradient } from '../components/k';
 import { useAccountOptions } from '../components/domain';
 import { forecast, goalProgress, monthlyEquivalent, upcoming } from '../lib/ledger';
@@ -157,10 +158,13 @@ export default function PaycheckPlan() {
   const fromWants = Math.min(toSavings, Math.max(0, actual.wants - target.wants));
 
   return (
-    <Screen title="Paycheck plan" subtitle="Split one pay into what’s spoken for, what to save, and what’s free." back>
+    <Screen title="Paycheck plan" subtitle="Split one pay into what’s spoken for, what to save, and what’s free." back tour="paycheck">
+      <Spot id="paycheck.amount">
       <Field label="This pay" big value={amount} onChangeText={setAmount} keyboardType="decimal-pad" placeholder="0" prefix="₱"
         hint="Take-home amount, after tax and contributions." />
+      </Spot>
 
+      <Spot id="paycheck.until">
       <Section title="Lasts until">
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
           <Chip label={detected ? `Next salary · ${dayLabel(detected)}` : 'In 15 days'} selected={choice === 'auto'} onPress={() => setChoice('auto')} icon="briefcase-outline" />
@@ -172,14 +176,15 @@ export default function PaycheckPlan() {
         </View>
         {!detected ? <T v="small" style={{ marginTop: 8 }}>Add your salary under Planned payments and Cynct will find the next payday by itself.</T> : null}
       </Section>
+      </Spot>
 
       {pay > 0 ? (
         <>
           {/* K: the pay as a stack of blocks, from what can't wait down to what's free. */}
-          <View style={{ marginTop: 22 }}>
+          <Spot id="paycheck.result" style={{ marginTop: 22 }}>
             <T v="display" style={{ fontSize: 44, lineHeight: 50 }}>{peso(pay, { cents: false })}</T>
             <T v="muted" style={{ marginTop: 4 }}>{`has to last ${days} day${days === 1 ? '' : 's'}, until ${dayLabel(next)}`}</T>
-          </View>
+          </Spot>
           <View style={{ marginTop: 14, gap: 3 }} accessibilityLabel={`How this pay is split: ${parts.map(p => `${p.label} ${peso(p.value, { cents: false })}`).join(', ')}`}>
             <StackBlock first label={`Bills before ${dayLabel(next)}`} value={plan.needs} bg={c.ink} fg={c.bg} min={52} />
             <StackBlock label="Day-to-day" value={plan.dayToDay} bg={c.blue} fg="#FFFFFF" min={52} />
@@ -202,7 +207,8 @@ export default function PaycheckPlan() {
               sub={plan.free > 0 ? `about ${peso(Math.floor(plan.free / days), { cents: false })} a day on top of day-to-day` : undefined} />
           </View>
 
-          <Card style={{ marginTop: 12, gap: 12 }}>
+          <Spot id="paycheck.guide" style={{ marginTop: 12 }}>
+          <Card style={{ gap: 12 }}>
             <View style={{ gap: 8 }}>
               <T v="h3">Needs, wants, savings</T>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
@@ -240,6 +246,7 @@ export default function PaycheckPlan() {
               : 'Day-to-day counts as needs until there’s some spending history.'}</T>
             <Button small variant="ghost" icon="tag-multiple-outline" label="Choose which categories are wants" onPress={() => router.push('/categories')} />
           </Card>
+          </Spot>
 
           {plan.shortfall > 0 ? (
             <View style={{ marginTop: 12 }}>
@@ -344,11 +351,13 @@ export default function PaycheckPlan() {
           </Section>
 
           {moves.length ? (
+            <Spot id="paycheck.move">
             <Section title="Move the goal money now">
               <Select label="From" value={fromId} options={accountOptions.filter(o => assetIds.has(o.value))} onChange={setFromId} />
               <GradButton label={`Move ${peso(moveTotal, { cents: false })} into ${moves.length} goal${moves.length === 1 ? '' : 's'}`} onPress={moveNow} style={{ marginTop: 12 }} />
               <T v="small" style={{ marginTop: 8 }}>Records a goal deposit for each goal above, dated {dayLabel(payDate)}. You can undo it right after.</T>
             </Section>
+            </Spot>
           ) : null}
 
           <View style={{ marginTop: 18, backgroundColor: c.sunk, borderRadius: radius.md, padding: 12 }}>

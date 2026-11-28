@@ -7,6 +7,7 @@ import { useTheme } from '../../theme';
 import { Bar, Button, Card, Empty, Grid, Icon, IconBubble, List, Note, Row, Screen, Section, Segmented, T } from '../../components/ui';
 import { BASE, money } from '../../lib/currency';
 import { GlassIcon, KHeader, KSheet, OnNight } from '../../components/k';
+import { Spot, TourHelp } from '../../components/tour';
 import { setSetting } from '../../db/repo';
 import { compactPeso, peso } from '../../lib/money';
 import { isLiability, netWorth } from '../../lib/ledger';
@@ -68,13 +69,14 @@ export default function Wallet() {
   const liabilities = active.filter(a => isLiability(a.type));
 
   return (
-    <Screen headerless edge padBottom={130}>
+    <Screen headerless edge padBottom={130} tour="wallet">
       <KHeader title="Wallet" right={<>
+        <TourHelp id="wallet" />
         <GlassIcon name={hidden ? 'eye-off-outline' : 'eye-outline'} label={hidden ? 'Show amounts' : 'Hide amounts'} onPress={() => act(db => setSetting(db, 'hideAmounts', !hidden))} />
         <GlassIcon name="qrcode" label="My payment methods" onPress={() => router.push('/payment-methods')} />
-        <GlassIcon name="plus" label="Add account" onPress={() => router.push('/account/new')} />
+        <Spot id="wallet.add"><GlassIcon name="plus" label="Add account" onPress={() => router.push('/account/new')} /></Spot>
       </>}>
-        <View style={{ marginTop: 12 }}>
+        <Spot id="wallet.total" style={{ marginTop: 12 }}>
           <OnNight>Net worth</OnNight>
           <T v="display" color="#FFFFFF" style={{ fontSize: 46, lineHeight: 54 }} numberOfLines={1}>{peso(nw.net, { cents: false })}</T>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: 14, marginTop: 4 }}>
@@ -82,7 +84,7 @@ export default function Wallet() {
             <OnNight v="xs">{`You owe ${compactPeso(nw.liabilities)}`}</OnNight>
             {goalFunds + goalLinked > 0 ? <OnNight v="xs">{`In goals ${compactPeso(goalFunds + goalLinked)}`}</OnNight> : null}
           </View>
-        </View>
+        </Spot>
       </KHeader>
       <KSheet>
       {missing.length ? <View style={{ marginTop: 10 }}><Note tone="warn" icon="currency-usd-off">{`Set a rate for ${missing.join(', ')} in Currencies. Until then those accounts count as ₱0 in totals.`}</Note></View> : null}
@@ -107,6 +109,7 @@ export default function Wallet() {
 
       {!active.length ? <View style={{ marginTop: 16 }}><Empty icon="wallet-plus-outline" title="Add your first account" text="Banks, e-wallets, cash, credit cards and loans." action="Add account" onAction={() => router.push('/account/new')} /></View> : null}
 
+      <Spot id="wallet.list">
       {[['Money', assets], ['Cards and loans', liabilities]].map(([title, list]) => {
         const accs = list as Account[];
         if (!accs.length) return null;
@@ -130,6 +133,7 @@ export default function Wallet() {
           </Section>
         );
       })}
+      </Spot>
 
       <T v="small" style={{ marginTop: 14 }}>Banks and e-wallets don’t sync automatically. Open an account and enter its real balance now and then; the difference is saved as a correction.</T>
 

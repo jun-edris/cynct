@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Animated, Pressable, View } from 'react-native';
 import { Redirect, Tabs, router, usePathname } from 'expo-router';
+import { Spot } from '../../components/tour';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useData } from '../../data/DataContext';
 import { fonts, radius, useTheme } from '../../theme';
@@ -99,7 +100,7 @@ function TabBar() {
       <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: c.surface, borderRadius: 30, borderWidth: 1, borderColor: c.line, height: 70,
         shadowColor: '#17122D', shadowOpacity: 0.18, shadowRadius: 22, shadowOffset: { width: 0, height: 12 }, elevation: 10 }}>
         {item(TABS[0])}{item(TABS[1])}
-        <Fab onPress={() => setOpen(true)} />
+        <Spot id="tabs.add"><Fab onPress={() => setOpen(true)} /></Spot>
         {item(TABS[2])}{item(TABS[3])}
       </View>
       <AddMenu open={open} onClose={() => setOpen(false)} />
@@ -110,6 +111,8 @@ function TabBar() {
 export default function TabsLayout() {
   const { data } = useData();
   if (!data.settings.setupDone) return <Redirect href="/welcome" />;
+  // Closed the app halfway through setup: pick it up where it was.
+  if (data.settings.setupPending) return <Redirect href="/setup" />;
   return (
     <Tabs tabBar={() => <TabBar />} screenOptions={{ headerShown: false }}>
       <Tabs.Screen name="index" />

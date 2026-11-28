@@ -6,6 +6,7 @@ import { useData, safeJson } from '../../data/DataContext';
 import { fonts, radius, space, useTheme } from '../../theme';
 import { Button, Chip, Icon, IconButton, Select, Sheet, T, DateField, type Option } from '../../components/ui';
 import { GlassIcon, NightGradient } from '../../components/k';
+import { Spot, TourHelp, useScreenTour } from '../../components/tour';
 import { TxRow, useCategoryName, useCategoryOptions } from '../../components/domain';
 import { addDays, addMonths, compactPeso, dayLabel, lastDayOfMonth, monthLabel, peso, todayISO } from '../../lib/money';
 import { descendantsOf, periodRange, summarize } from '../../lib/ledger';
@@ -42,6 +43,7 @@ function rangePresets(today = todayISO()) {
 export default function History() {
   const { c } = useTheme();
   const insets = useSafeAreaInsets();
+  useScreenTour('history');
   const { data, cats, act, rtx } = useData();
   const catName = useCategoryName();
   const today = todayISO();
@@ -127,17 +129,17 @@ export default function History() {
         </View>
       ) : null}
       {!query ? (
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Spot id="history.month" style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           {isMonth ? <IconButton name="chevron-left" label="Previous month" onPress={() => shiftMonth(-1)} /> : <View style={{ width: 44 }} />}
           <Pressable onPress={() => setFiltersOpen(true)} accessibilityRole="button" style={{ alignItems: 'center' }}>
             <T v="h2">{isMonth ? monthLabel(range.start.slice(0, 7)) : range.label}</T>
             {!isMonth && range.key !== 'all' ? <T v="small">{dayLabel(range.start)} – {dayLabel(range.end)}</T> : null}
           </Pressable>
           {isMonth && range.end < latest ? <IconButton name="chevron-right" label="Next month" onPress={() => shiftMonth(1)} /> : <View style={{ width: 44 }} />}
-        </View>
+        </Spot>
       ) : <T v="small" style={{ marginBottom: 4 }}>{filtered.length} result{filtered.length === 1 ? '' : 's'} across all time</T>}
 
-      <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+      <Spot id="history.totals" style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
         <View style={{ flex: 1, backgroundColor: c.tGreen, borderRadius: radius.lg, padding: 14 }}>
           <T v="label">{`In · ${isMonth ? monthLabel(range.start.slice(0, 7)).split(' ')[0] : range.label}`}</T>
           <T v="numLg" color={c.income} style={{ fontSize: 20 }}>{compactPeso(sum.income)}</T>
@@ -146,11 +148,13 @@ export default function History() {
           <T v="label">{`Out · ${isMonth ? monthLabel(range.start.slice(0, 7)).split(' ')[0] : range.label}`}</T>
           <T v="numLg" color={c.spend} style={{ fontSize: 20 }}>{compactPeso(sum.expense)}</T>
         </View>
-      </View>
+      </Spot>
       {/* Quick type filter, like the K design; the rest stay in the filter sheet. */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12, marginHorizontal: -space.page }} contentContainerStyle={{ paddingHorizontal: space.page, gap: 6 }}>
+      <Spot id="history.kinds" style={{ marginTop: 12, marginHorizontal: -space.page }}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: space.page, gap: 6 }}>
         {KINDS.map(([k, l]) => <Chip key={k} label={l} selected={kind === k} onPress={() => setKind(k)} />)}
       </ScrollView>
+      </Spot>
       {activeFilters ? (
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
           {accountId ? <Chip label={data.accounts.find(a => a.id === accountId)?.name ?? 'Account'} icon="close" selected onPress={() => setAccountId('')} /> : null}
@@ -176,12 +180,15 @@ export default function History() {
           <T v="title" color="#FFFFFF">{selecting ? `${selected.length} selected` : 'History'}</T>
           <View style={{ flexDirection: 'row', gap: 8 }}>
             {selecting ? <GlassIcon name="close" label="Cancel selection" onPress={() => setSelected([])} /> : <>
+              <TourHelp id="history" />
+              <Spot id="history.search" style={{ flexDirection: 'row', gap: 8 }}>
               <GlassIcon name="magnify" label="Search" onPress={() => setSearchOpen(true)} />
               <GlassIcon name="calendar-month-outline" label="Calendar" onPress={() => router.push('/calendar')} />
               <View>
                 <GlassIcon name="tune-variant" label="Filters and options" onPress={() => setFiltersOpen(true)} />
                 {activeFilters ? <View style={{ position: 'absolute', top: 4, right: 4, width: 10, height: 10, borderRadius: 5, backgroundColor: c.amber }} /> : null}
               </View>
+              </Spot>
             </>}
           </View>
         </View>

@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   Animated, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View, KeyboardAvoidingView, Platform,
-  type TextInputProps, type TextStyle, type ViewStyle, type StyleProp,
+  type TextInputProps, type TextStyle, type ViewStyle, type StyleProp, type ScrollViewInstance,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
@@ -12,6 +12,8 @@ import { fonts, radius, space, useTheme } from '../theme';
 import { dayLabel, groupDigits, parseISO, peso, todayISO } from '../lib/money';
 import { evaluate, hasOperator, pressWith } from '../lib/calc';
 import { Squish, haptic, useSpring, SPRING } from './motion';
+import { useScreenTour, type Scroller } from './tourCtx';
+import type { TourId } from '../lib/tours';
 
 // ---------- icons ----------
 export function Icon({ name, size = 22, color }: { name: string; size?: number; color: string }) {
@@ -54,25 +56,35 @@ export function Money({ value, sign, v = 'num', color, style, cents }: { value: 
 }
 
 // ---------- layout ----------
-export function Screen({ title, subtitle, back, right, children, scroll = true, padBottom = 120, headerless, edge }: {
+export function Screen({ title, subtitle, back, right, children, scroll = true, padBottom = 120, headerless, edge, tour }: {
   title?: string; subtitle?: string; back?: boolean; right?: React.ReactNode; children: React.ReactNode; scroll?: boolean; padBottom?: number; headerless?: boolean;
   /** Content starts at the very top edge (for gradient headers that run under the status bar). */
   edge?: boolean;
+  /** This screen's guided tips: they start by themselves for new users, and the header gets a ? button. */
+  tour?: TourId;
 }) {
   const { c } = useTheme();
   const insets = useSafeAreaInsets();
+  const sv = useRef<ScrollViewInstance>(null);
+  const offset = useRef(0);
+  const [scroller] = useState<Scroller>(() => ({ scrollBy: (dy: number) => { const to = Math.max(0, offset.current + dy); sv.current?.scrollTo({ y: to, animated: true }); return to - offset.current; } }));
+  const startTour = useScreenTour(tour, scroll ? scroller : null);
   const header = headerless ? null : (
     <View style={{ paddingTop: insets.top + 8, paddingHorizontal: space.page, paddingBottom: 6, backgroundColor: c.bg }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 48 }}>
         {back ? <IconButton name="arrow-left" label="Back" onPress={close} filled /> : <View />}
-        <View style={{ flexDirection: 'row', gap: 8 }}>{right}</View>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          {tour ? <IconButton name="help-circle-outline" label="Show tips for this screen" onPress={startTour} filled /> : null}
+          {right}
+        </View>
       </View>
       {title ? <T v="title" style={{ marginTop: back ? 8 : 0 }}>{title}</T> : null}
       {subtitle ? <T v="muted" style={{ marginTop: 4 }}>{subtitle}</T> : null}
     </View>
   );
   const body = scroll
-    ? <ScrollView contentContainerStyle={{ paddingHorizontal: space.page, paddingBottom: padBottom + insets.bottom, paddingTop: edge ? 0 : 6 }} keyboardShouldPersistTaps="handled">{children}</ScrollView>
+    ? <ScrollView ref={sv} onScroll={e => { offset.current = e.nativeEvent.contentOffset.y; }} scrollEventThrottle={32}
+        contentContainerStyle={{ paddingHorizontal: space.page, paddingBottom: padBottom + insets.bottom, paddingTop: edge ? 0 : 6 }} keyboardShouldPersistTaps="handled">{children}</ScrollView>
     : <View style={{ flex: 1 }}>{children}</View>;
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: c.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -363,7 +375,7 @@ function NumberField({ label, hint, error, style, big, decimals = 2, prefix, val
             </View>
             {preview ? <T v="medium" color={c.muted}>{preview}</T> : hint ? <T v="small">{hint}</T> : null}
           </View>
-          <Keypad expr={expr} onChange={change} onDone={done} mode={mode} maxDecimals={decimals} negative={neg}
+          <Keypad expr={expr} onChange={change} mode={mode} maxDecimals={decimals} negative={neg}
             onToggleSign={() => { const n = !neg; setNeg(n); emit(expr, n); }} />
           <Button label="Done" icon="check" onPress={done} />
         </View>
@@ -564,15 +576,16 @@ export function IconPicker({ value, icons, color, onChange }: { value: string; i
  * mode: 'calc' amounts with + − × ÷ %, 'signed' adds a ± key for amounts that can be negative, 'integer' is digits only.
  */
 export type PadMode = 'calc' | 'signed' | 'integer';
-export function Keypad({ expr, onChange, onDone, mode = 'calc', maxDecimals = 2, negative, onToggleSign }: {
-  expr: string; onChange: (v: string) => void; onDone?: () => void; mode?: PadMode; maxDecimals?: number; negative?: boolean; onToggleSign?: () => void;
+export function Keypad({ expr, onChange, mode = 'calc', maxDecimals = 2, negative, onToggleSign }: {
+  expr: string; onChange: (v: string) => void; mode?: PadMode; maxDecimals?: number; negative?: boolean; onToggleSign?: () => void;
 }) {
   const { c } = useTheme();
   const rows = mode === 'integer'
-    ? [['1', '2', '3'], ['4', '5', '6'], ['7', '8', '9'], ['⌫', '0', '=']]
+    ? [['1', '2', '3'], ['4', '5', '6'], ['7', '8', '9'], ['⌫', '0', '']]
     : [['AC', '⌫', mode === 'signed' ? '±' : '%', '÷'], ['7', '8', '9', '×'], ['4', '5', '6', '−'], ['1', '2', '3', '+'], ['00', '0', '.', '=']];
   const tap = (k: string) => {
-    if (k === '=' && !hasOperator(expr)) { onDone?.(); return; }
+    // The button under the pad (Done / Save) is the one confirm; = only works out a sum.
+    if (k === '=' && !hasOperator(expr)) return;
     if (k === '±') { onToggleSign?.(); return; }
     if (mode === 'integer') { onChange(k === '⌫' ? expr.slice(0, -1) : expr + k); return; }
     onChange(pressWith(expr, k, maxDecimals));
@@ -582,19 +595,19 @@ export function Keypad({ expr, onChange, onDone, mode = 'calc', maxDecimals = 2,
       {rows.map((r, i) => (
         <View key={i} style={{ flexDirection: 'row', gap: 8 }}>
           {r.map(k => {
-            const op = ['÷', '×', '−', '+', '%'].includes(k);
-            const eq = k === '=';
+            if (!k) return <View key="blank" style={{ flex: 1 }} />;
+            const op = ['÷', '×', '−', '+', '%', '='].includes(k);
             const danger = k === 'AC' || k === '⌫';
             const sign = k === '±';
-            const bg = eq ? c.mango : op || (sign && negative) ? c.mangoSoft : danger || sign ? c.sunk : c.surface;
-            const fg = eq ? c.onMango : op || (sign && negative) ? c.mango : danger ? c.spend : c.ink;
+            const bg = op || (sign && negative) ? c.mangoSoft : danger || sign ? c.sunk : c.surface;
+            const fg = op || (sign && negative) ? c.mango : danger ? c.spend : c.ink;
             return (
               <Squish key={k} accessibilityRole="button"
-                accessibilityLabel={{ '⌫': 'Delete', AC: 'Clear', '−': 'Minus', '×': 'Times', '÷': 'Divide', '±': negative ? 'Make positive' : 'Make negative', '=': hasOperator(expr) ? 'Equals' : 'Done' }[k] ?? k}
+                accessibilityLabel={{ '⌫': 'Delete', AC: 'Clear', '−': 'Minus', '×': 'Times', '÷': 'Divide', '±': negative ? 'Make positive' : 'Make negative', '=': 'Equals' }[k] ?? k}
                 onPress={() => tap(k)} onLongPress={k === '⌫' ? () => onChange('') : undefined}
                 outer={{ flex: 1 }} radius={radius.md} pressedRadius={27} scale={0.95}
                 style={{ height: 56, backgroundColor: bg, alignItems: 'center', justifyContent: 'center' }}>
-                {k === '⌫' ? <Icon name="backspace-outline" color={fg} /> : eq && !hasOperator(expr) ? <Icon name="check" color={fg} size={26} />
+                {k === '⌫' ? <Icon name="backspace-outline" color={fg} />
                   : <Text style={{ fontFamily: fonts.num, fontSize: 22, color: fg }}>{k}</Text>}
               </Squish>
             );

@@ -11,6 +11,7 @@ import { readLayout, type HomeSection } from '../../lib/home';
 import { draftsFrom, readCapture } from '../../data/capture';
 import { TxRow, UpcomingRow } from '../../components/domain';
 import { CoinJar, Glass, NightGradient, OnNightPill, SentiBadge, SheetUp, useCountUp, useReduceMotion } from '../../components/k';
+import { Spot, TourHelp } from '../../components/tour';
 import { lastMonths, monthFlow } from '../../lib/flow';
 import { setSetting } from '../../db/repo';
 import { compactPeso, peso, todayISO, parseISO, nowMs } from '../../lib/money';
@@ -211,7 +212,7 @@ export default function Home() {
     </>),
   };
   return (
-    <Screen headerless padBottom={130} edge>
+    <Screen headerless padBottom={130} edge tour="home">
       <NightGradient style={{ marginHorizontal: -18, paddingTop: insets.top + 12, paddingHorizontal: 18, paddingBottom: 46 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <T v="h2" color="#FFFFFF" style={{ flex: 1, fontFamily: fonts.numBlack, fontSize: 21 }}>cynct</T>
@@ -220,15 +221,21 @@ export default function Home() {
             <Icon name={st.current ? 'fire' : 'fire-off'} size={18} color={st.current ? c.amber : '#E7E0FF'} />
             <T v="num" color="#FFFFFF" style={{ fontSize: 14 }}>{st.current}</T>
           </Pressable>
-          <GlassButton icon={hidden ? 'eye-off-outline' : 'eye-outline'} label={hidden ? 'Show amounts' : 'Hide amounts'} onPress={() => act(db => setSetting(db, 'hideAmounts', !hidden))} />
-          <GlassButton icon="cog-outline" label="Settings" onPress={() => router.push('/settings')} />
+          <TourHelp id="home" />
+          <Spot id="home.tools" style={{ flexDirection: 'row', gap: 8 }}>
+            <GlassButton icon={hidden ? 'eye-off-outline' : 'eye-outline'} label={hidden ? 'Show amounts' : 'Hide amounts'} onPress={() => act(db => setSetting(db, 'hideAmounts', !hidden))} />
+            <GlassButton icon="cog-outline" label="Settings" onPress={() => router.push('/settings')} />
+          </Spot>
         </View>
-        <Pressable onPress={() => router.push('/overview')} accessibilityRole="button" accessibilityLabel={`Net worth ${peso(nw.net, { cents: false })}. Open overview`} style={{ marginTop: 14 }}>
+        <Spot id="home.balance" style={{ marginTop: 14, alignSelf: 'flex-start' }}>
+        <Pressable onPress={() => router.push('/overview')} accessibilityRole="button" accessibilityLabel={`Net worth ${peso(nw.net, { cents: false })}. Open overview`}>
           <T v="medium" color="#E7E0FF">You have</T>
           <T v="display" color="#FFFFFF" style={{ fontSize: 50, lineHeight: 58, marginTop: 2 }} numberOfLines={1}>{peso(hidden ? nw.net : shownNet, { cents: false })}</T>
         </Pressable>
+        </Spot>
 
-        <Glass style={{ marginTop: 12, padding: 12, paddingBottom: 8 }}>
+        <Spot id="home.chart" style={{ marginTop: 12 }}>
+        <Glass style={{ padding: 12, paddingBottom: 8 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
             <View><T v="label" color="#E7E0FF">{`In · ${monthShort}`}</T><T v="num" color={IN} style={{ fontSize: 17 }}>{compactPeso(flow.income)}</T></View>
             <View><T v="label" color="#E7E0FF">{`Out · ${monthShort}`}</T><T v="num" color={OUT} style={{ fontSize: 17 }}>{compactPeso(flow.expense)}</T></View>
@@ -253,17 +260,19 @@ export default function Home() {
             </View>
           ) : <MonthBars months={months} />}
         </Glass>
+        </Spot>
 
-        <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+        <Spot id="home.actions" style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
           <OnNightPill label="Spend" style={{ flex: 1 }} icon={<Icon name="arrow-up" size={18} color="#D23A7E" />} onPress={() => router.push({ pathname: '/tx/[id]', params: { id: 'new', type: 'expense' } })} />
           <OnNightPill label="Income" style={{ flex: 1 }} icon={<Icon name="arrow-down" size={18} color="#0F7A4A" />} onPress={() => router.push({ pathname: '/tx/[id]', params: { id: 'new', type: 'income' } })} />
           <OnNightPill label="Move" style={{ flex: 1 }} icon={<Icon name="swap-horizontal" size={18} color="#6B3BF5" />} onPress={() => router.push({ pathname: '/transfer/[id]', params: { id: 'new' } })} />
-        </View>
+        </Spot>
       </NightGradient>
 
       <SheetUp style={{ marginHorizontal: -18, paddingHorizontal: 18, paddingTop: 4 }}>
       {alerts}
       {accounts.length ? (
+        <Spot id="home.accounts">
         <Section title="Accounts" action="Wallet" onAction={() => router.push('/wallet')}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -18 }} contentContainerStyle={{ paddingHorizontal: 18, gap: 8 }}>
             {accounts.map(a => {
@@ -282,6 +291,7 @@ export default function Home() {
             })}
           </ScrollView>
         </Section>
+        </Spot>
       ) : null}
       {layout.order.filter(k => !layout.hidden.includes(k)).map(k => <React.Fragment key={k}>{blocks[k]}</React.Fragment>)}
       {recap ? (

@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import React, { useMemo, useRef, useState } from 'react';
+import { Pressable, ScrollView, View, type ScrollViewInstance } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useData, safeJson } from '../../data/DataContext';
@@ -9,6 +9,7 @@ import {
 } from '../../components/ui';
 import { CategoryGrid, PhotoField, TagField, useAccountOptions } from '../../components/domain';
 import { GradButton, NightGradient } from '../../components/k';
+import { Spot, TourHelp, useScreenTour, useTourRunning } from '../../components/tour';
 import { useSafeToSpend } from '../../data/safe';
 import { learn, recall, type CatMemory } from '../../lib/learn';
 import { budgetCrossings, crossingText } from '../../lib/budgetAlert';
@@ -44,6 +45,11 @@ export default function Entry() {
   const safe = useSafeToSpend();
   const existing = data.transactions.find(t => t.id === params.id) ?? data.deleted.find(t => t.id === params.id);
   const isNew = !existing;
+  const sv = useRef<ScrollViewInstance>(null);
+  const offset = useRef(0);
+  const [scroller] = useState(() => ({ scrollBy: (dy: number) => { const to = Math.max(0, offset.current + dy); sv.current?.scrollTo({ y: to, animated: true }); return to - offset.current; } }));
+  useScreenTour(isNew ? 'add' : undefined, scroller);
+  const touring = useTourRunning();
   const special = existing && existing.type !== 'expense' && existing.type !== 'income';
   const lastUsed = (data.settings.lastUsedAccount as string) || (data.settings.defaultAccountId as string) || data.accounts.find(a => !a.archived)?.id || '';
   const activeTrip = data.trips.find(t => !t.endDate);
@@ -178,7 +184,7 @@ export default function Entry() {
           <GlassIcon name="close" label="Close" onPress={close} />
           <View style={{ flex: 1, alignItems: 'center' }}>
             {special ? <T v="h2" center color="#FFFFFF">{title}</T> : (
-              <View style={{ flexDirection: 'row', padding: 3, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.12)' }} accessibilityRole="radiogroup">
+              <Spot id="add.type" style={{ flexDirection: 'row', padding: 3, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.12)' }}>
                 {([['expense', 'Expense'], ['income', 'Income'], ...(isNew ? [['transfer', 'Transfer']] as const : [])] as const).map(([k, l]) => (
                   <Pressable key={k} onPress={() => {
                     if (k === 'transfer') { router.replace({ pathname: '/transfer/[id]', params: { id: 'new', amount: value > 0 ? String(value) : '' } }); return; }
@@ -188,13 +194,13 @@ export default function Entry() {
                     <T v="semi" color={kind === k ? '#17122D' : '#FFFFFF'} style={{ fontSize: 14 }}>{l}</T>
                   </Pressable>
                 ))}
-              </View>
+              </Spot>
             )}
           </View>
-          {!isNew ? <GlassIcon name="trash-can-outline" label="Delete" onPress={del} /> : <View style={{ width: 40 }} />}
+          {!isNew ? <GlassIcon name="trash-can-outline" label="Delete" onPress={del} /> : <TourHelp id="add" />}
         </View>
         {special && existing!.type === 'adjust' ? null : (
-          <Pressable onPress={() => setKeypadOpen(true)} accessibilityRole="button" accessibilityLabel={`Amount ${m(Math.round(value * 100))}. Tap to edit`}
+          <Spot id="add.amount"><Pressable onPress={() => setKeypadOpen(true)} accessibilityRole="button" accessibilityLabel={`Amount ${m(Math.round(value * 100))}. Tap to edit`}
             style={{ alignItems: 'center', paddingTop: 18, paddingBottom: 4 }}>
             <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 4 }}>
               <T v="numLg" color={expr ? '#E7E0FF' : 'rgba(255,255,255,0.5)'} style={{ fontSize: 26, marginTop: 10 }}>{symbolOf(entryCur).trim()}</T>
@@ -210,7 +216,7 @@ export default function Entry() {
                 : `${peso(after, { cents: false })} of today’s ${peso(safe.allowance, { cents: false })} left after this`}</T>;
             })() : null}
             <View style={{ width: 44, height: 4, borderRadius: 2, backgroundColor: keypadOpen ? '#FFFFFF' : 'rgba(255,255,255,0.3)', marginTop: 6 }} />
-          </Pressable>
+          </Pressable></Spot>
         )}
         {!special ? (
           <View style={{ alignItems: 'center', marginTop: 10 }}>
@@ -224,7 +230,8 @@ export default function Entry() {
         ) : null}
       </NightGradient>
 
-      <ScrollView contentContainerStyle={{ padding: space.page, gap: 18, paddingBottom: 30 }} keyboardShouldPersistTaps="handled">
+      <ScrollView ref={sv} onScroll={e => { offset.current = e.nativeEvent.contentOffset.y; }} scrollEventThrottle={32}
+        contentContainerStyle={{ padding: space.page, gap: 18, paddingBottom: 30 }} keyboardShouldPersistTaps="handled">
         {special && existing!.type === 'adjust' ? (
           <Field label="Correction amount" big value={signedAmount} onChangeText={setSignedAmount} keyboardType="numbers-and-punctuation" hint="Use a minus sign for money that went missing." />
         ) : null}
@@ -249,13 +256,13 @@ export default function Entry() {
             <Chip icon="history" label={`Same as last time: ${data.categories.find(x => x.id === suggested)?.name}`} onPress={() => setCategoryId(suggested)} />
           </View>
         ) : null}
-        {!special ? <CategoryGrid kind={kind} value={categoryId} onChange={(id) => { setCategoryId(id); }} /> : null}
+        {!special ? <Spot id="add.category"><CategoryGrid kind={kind} value={categoryId} onChange={(id) => { setCategoryId(id); }} /></Spot> : null}
         {futurePlan ? <Note tone="info" icon="calendar-clock">{`That date hasn’t come yet, so this is saved as a planned payment for ${dayLabel(date)}${repeat ? ' that repeats' : ''}, not as money spent. Mark it paid when it happens.`}</Note> : null}
         <FormRow>
           <DateField label="Date" value={date} onChange={(v) => v && setDate(v)} />
           <TimeField label="Time" value={time} onChange={setTime} />
         </FormRow>
-        {!special ? <Select label="Account" value={accountId} options={accountOptions} onChange={setAccountId} placeholder="Choose an account" /> : null}
+        {!special ? <Spot id="add.account"><Select label="Account" value={accountId} options={accountOptions} onChange={setAccountId} placeholder="Choose an account" /></Spot> : null}
         {!special ? <PhotoField value={photo} onChange={setPhoto} label="Photo or receipt" /> : null}
         {!special ? <TagField value={tags} onChange={setTags} /> : null}
         {!special && tripId ? (
@@ -285,19 +292,21 @@ export default function Entry() {
         </View>
       </Sheet>
 
-      {keypadOpen && !(special && existing!.type === 'adjust') ? (
+      {keypadOpen && !touring && !(special && existing!.type === 'adjust') ? (
         <View style={{ backgroundColor: c.sunk, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, padding: 12, paddingBottom: insets.bottom + 12, gap: 10 }}>
-          <Keypad expr={expr} onChange={setExpr} onDone={() => setKeypadOpen(false)} />
+          <Keypad expr={expr} onChange={setExpr} />
           <View style={{ flexDirection: 'row', gap: 10 }}>
             <Button variant="secondary" icon="chevron-down" label="Hide" small onPress={() => setKeypadOpen(false)} style={{ flex: 1 }} />
-            {isNew ? <GradButton label={saveLabel} onPress={save} style={{ flex: 2, height: 48 }} /> : <Button label="Save" onPress={save} small style={{ flex: 2 }} />}
+            <Spot id="add.save" style={{ flex: 2 }}>
+              {isNew ? <GradButton label={saveLabel} onPress={save} style={{ height: 48 }} /> : <Button label="Save" onPress={save} small />}
+            </Spot>
           </View>
         </View>
       ) : (
         <View style={{ paddingHorizontal: space.page, paddingTop: 10, paddingBottom: insets.bottom + 12, flexDirection: 'row', gap: 10, borderTopWidth: 1, borderColor: c.line }}>
-          <View style={{ flex: 1 }}>
+          <Spot id="add.save" style={{ flex: 1 }}>
             {isNew && !special ? <GradButton label={saveLabel} onPress={save} /> : <Button label={isNew ? 'Save' : 'Save changes'} icon="check" onPress={save} />}
-          </View>
+          </Spot>
         </View>
       )}
     </View>

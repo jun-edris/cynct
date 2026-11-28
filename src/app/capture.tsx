@@ -6,6 +6,7 @@ import { router } from 'expo-router';
 import { useData } from '../data/DataContext';
 import { radius, useTheme } from '../theme';
 import { Button, Card, Chip, Field, Icon, IconBubble, List, Note, Row, Screen, Section, Sheet, T, Toggle } from '../components/ui';
+import { Spot } from '../components/tour';
 import { addCaptured, setCaptured, setSetting } from '../db/repo';
 import { APPS, parseCapture, type CaptureRow, type Draft } from '../lib/capture';
 import { alreadyKnown, parseMayaScreen, screenToCapture } from '../lib/screenshot';
@@ -109,11 +110,11 @@ export default function CaptureScreen() {
   };
 
   return (
-    <Screen title="Payment capture" subtitle="Turns Maya, Wise and GoTyme notifications into transactions for you to confirm." back>
+    <Screen title="Payment capture" subtitle="Turns Maya, GCash, Wise and GoTyme notifications into transactions for you to confirm." back tour="capture">
       {!captureSupported ? (
         <Note icon="cellphone-off">This works on the Android app only. It reads notifications on your phone.</Note>
       ) : (
-        <Card style={{ gap: 12 }}>
+        <Spot id="capture.toggle"><Card style={{ gap: 12 }}>
           <Toggle label="Capture payments" hint="Reads only notifications from the apps below. Nothing leaves your phone." value={prefs.enabled}
             onChange={(v) => { save({ enabled: v }, v ? 'Payment capture on' : 'Payment capture off'); if (v && !on) Capture.openSettings(); }} />
           {prefs.enabled ? (
@@ -129,11 +130,11 @@ export default function CaptureScreen() {
               </>
             )
           ) : null}
-        </Card>
+        </Card></Spot>
       )}
 
       {ocrSupported ? (
-        <Card style={{ gap: 10, marginTop: 12 }}>
+        <Spot id="capture.screenshot" style={{ marginTop: 12 }}><Card style={{ gap: 10 }}>
           <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
             <IconBubble icon="cellphone-screenshot" color={c.info} size={40} />
             <View style={{ flex: 1 }}>
@@ -144,15 +145,17 @@ export default function CaptureScreen() {
           {reading ? (
             <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}><ActivityIndicator color={c.mango} /><T v="medium">{reading}</T></View>
           ) : <Button variant="secondary" icon="image-multiple-outline" label="Import screenshots" onPress={importShots} />}
-        </Card>
+        </Card></Spot>
       ) : null}
 
+      <Spot id="capture.review">
       <Section title="To review" aside={drafts.length ? String(drafts.length) : undefined}>
         {drafts.length ? <View style={{ gap: 12 }}>
           <Button icon="cards-outline" label={`Sort ${drafts.length} one by one`} onPress={() => router.push('/sort')} />
           {drafts.map(d => <DraftCard key={d.id} d={d} prefs={prefs} />)}</View>
           : <T v="muted">{prefs.enabled ? 'Nothing new. Payments show up here after the notification arrives and you open Cynct.' : 'Turn on capture to start.'}</T>}
       </Section>
+      </Spot>
 
       {unread.length ? (
         <Section title="Couldn’t read" aside={String(unread.length)}>
@@ -164,13 +167,16 @@ export default function CaptureScreen() {
         </Section>
       ) : null}
 
+      <Spot id="capture.links">
       <Section title="Apps and accounts">
         <List>{APPS.map(a => (
           <Row key={a.id} icon="link-variant" iconColor={c.info} title={a.name} sub={linkedNames(a.id)} chevron onPress={() => setLinking(a.id)} />
         ))}</List>
         <T v="small" style={{ marginTop: 8 }}>Link every account an app holds. Wise money goes to the linked account in the same currency.</T>
       </Section>
+      </Spot>
 
+      <Spot id="capture.you">
       <Section title="That’s you">
         <Card style={{ gap: 12 }}>
           <T v="small">Money from or to these names and account numbers is moving between your own accounts, so it becomes a transfer instead of income or spending.</T>
@@ -185,6 +191,7 @@ export default function CaptureScreen() {
             onPress={() => { save({ names: name.trim() ? [...new Set([...prefs.names, name.trim()])] : prefs.names, tails: tail.length >= 3 ? [...new Set([...prefs.tails, tail])] : prefs.tails }, 'Saved'); setName(''); setTail(''); }} />
         </Card>
       </Section>
+      </Spot>
 
       <View style={{ marginTop: 18, backgroundColor: c.sunk, borderRadius: radius.md, padding: 12, gap: 6 }}>
         <T v="small">Android lets apps with notification access see every notification. Cynct throws away anything that isn’t from Maya, Wise, GoTyme or GCash before it’s saved, keeps the rest on this phone, and forgets handled ones after 60 days. Backups don’t include them.</T>

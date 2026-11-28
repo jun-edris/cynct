@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { useData } from '../data/DataContext';
 import { useTheme } from '../theme';
 import { GlassIcon, KHeader, KSheet, OnNight } from '../components/k';
+import { Spot, TourHelp } from '../components/tour';
 import { Bar, Card, Empty, IconBubble, Screen, Segmented, T } from '../components/ui';
 import { budgetStatus } from '../lib/ledger';
 import { peso, todayISO } from '../lib/money';
@@ -20,8 +21,11 @@ export default function Budgets() {
   const avail = list.reduce((s, x) => s + x.s.available, 0);
 
   return (
-    <Screen headerless edge>
-      <KHeader title="Budgets" back right={<GlassIcon name="plus" label="New budget" onPress={() => router.push({ pathname: '/budget/[id]', params: { id: 'new', kind } })} />}>
+    <Screen headerless edge tour="budgets">
+      <KHeader title="Budgets" back right={<>
+        <TourHelp id="budgets" />
+        <Spot id="budgets.add"><GlassIcon name="plus" label="New budget" onPress={() => router.push({ pathname: '/budget/[id]', params: { id: 'new', kind } })} /></Spot>
+      </>}>
         <OnNight style={{ marginTop: 12 }}>{kind === 'income' ? 'Earned toward targets' : 'Left in your budgets'}</OnNight>
         <T v="display" color={kind !== 'income' && avail - used < 0 ? '#FF9CCB' : '#FFFFFF'} style={{ fontSize: 46, lineHeight: 54 }}>{peso(kind === 'income' ? used : avail - used, { cents: false })}</T>
         <OnNight v="xs">{avail ? `${peso(used, { cents: false })} ${kind === 'income' ? 'earned' : 'spent'} of ${peso(avail, { cents: false })} for each budget’s current period` : 'No budgets here yet'}</OnNight>
@@ -30,8 +34,8 @@ export default function Budgets() {
         </View> : null}
       </KHeader>
       <KSheet>
-      <Segmented value={kind} onChange={setKind} options={[['expense', 'Spending limits', 'arrow-up'], ['income', 'Income targets', 'arrow-down']]} />
-      <View style={{ marginTop: 16 }}>
+      <Spot id="budgets.kind"><Segmented value={kind} onChange={setKind} options={[['expense', 'Spending limits', 'arrow-up'], ['income', 'Income targets', 'arrow-down']]} /></Spot>
+      <Spot id="budgets.list" style={{ marginTop: 16 }}>
         {list.length ? (
           <View style={{ gap: 10 }}>
             {list.map(({ b, s }) => {
@@ -64,7 +68,7 @@ export default function Budgets() {
         ) : <Empty icon="chart-donut" title={kind === 'income' ? 'No income targets' : 'No budgets yet'}
           text={kind === 'income' ? 'Set a target like ₱100k a month and watch your progress.' : 'Pick one category first. Food usually gives the fastest win.'}
           action="Create one" onAction={() => router.push({ pathname: '/budget/[id]', params: { id: 'new', kind } })} />}
-      </View>
+      </Spot>
       </KSheet>
     </Screen>
   );

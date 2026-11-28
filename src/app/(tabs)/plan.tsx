@@ -2,6 +2,7 @@ import React from 'react';
 import { View } from 'react-native';
 import { router, type Href } from 'expo-router';
 import { KHeader, KSheet, OnNight, OnNightPill } from '../../components/k';
+import { Spot, TourHelp } from '../../components/tour';
 import { useData, safeJson } from '../../data/DataContext';
 import { radius, useTheme } from '../../theme';
 import { Card, Grid, Icon, IconBubble, Screen, Section, T } from '../../components/ui';
@@ -44,20 +45,20 @@ export default function Plan() {
   const activeInst = data.installments.filter(i => i.paidCount < i.months).length;
 
   return (
-    <Screen headerless edge padBottom={130}>
-      <KHeader title="Plan">
+    <Screen headerless edge padBottom={130} tour="plan">
+      <KHeader title="Plan" right={<TourHelp id="plan" />}>
         <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 12, marginTop: 12 }}>
-          <View style={{ flex: 1 }}>
+          <Spot id="plan.safe" style={{ flex: 1 }}>
             <OnNight>Safe to spend today</OnNight>
             <T v="display" color={safe.left < 0 ? '#FF9CCB' : '#FFFFFF'} style={{ fontSize: 50, lineHeight: 58 }} numberOfLines={1}>{safe.left < 0 ? `−${peso(-safe.left, { cents: false })}` : peso(safe.left, { cents: false })}</T>
             <OnNight v="xs">{`of ${peso(safe.allowance, { cents: false })} a day · until ${safe.untilName ? `${safe.untilName}, ` : ''}${dayLabel(safe.until)}${billsBefore ? ` · after ${compactPeso(billsBefore)} in bills` : ''}`}</OnNight>
             {next ? <OnNight v="xs" style={{ marginTop: 2 }}>{`Next planned: ${next.name}, ${dayLabel(next.date)}`}</OnNight> : null}
-          </View>
-          <OnNightPill label="Plan pay" onPress={() => router.push('/paycheck')} />
+          </Spot>
+          <Spot id="plan.pay"><OnNightPill label="Plan pay" onPress={() => router.push('/paycheck')} /></Spot>
         </View>
       </KHeader>
       <KSheet>
-      <View style={{ gap: 10, marginTop: 2 }}>
+      <Spot id="plan.tools" style={{ gap: 10, marginTop: 2 }}>
         <Tile wide icon="chart-donut" color={c.mango} title="Budgets"
           sub={budgetCount ? `${budgetCount} active${over ? ` · ${over} over limit` : ' · all within limits'}` : 'Daily to yearly limits, and income targets'} href="/budgets" />
         <Tile wide icon="flag-variant" color={c.income} title="Goals" sub={goals.length ? `${goals.length} in progress · ${compactPeso(saved)} saved` : 'Save toward something that matters'} href="/goals" />
@@ -65,7 +66,7 @@ export default function Plan() {
           sub={next ? `Next: ${next.name}, ${dayLabel(next.date)}` : 'Bills, paydays and one-time payments'} href="/planned" />
         <Tile wide icon="cash-fast" color="#2EC4B6" title="Paycheck plan" sub="Split your pay into bills, goals, investing and free money" href="/paycheck" />
         <Tile wide icon="bell-badge-outline" color="#8B6CFF" title="Payment capture" sub="Maya, Wise and GoTyme notifications become transactions" href="/capture" />
-      </View>
+      </Spot>
 
       <Section title="Debts">
         <View style={{ flexDirection: 'row', gap: 10 }}>
@@ -80,6 +81,7 @@ export default function Plan() {
         </View>
       </Section>
 
+      <Spot id="plan.more">
       <Section title="Tools">
         <Grid>
           <Tile icon="chart-timeline-variant" color={c.mango} title="Forecast" sub="Cash for the next 7–90 days" href="/forecast" />
@@ -99,6 +101,7 @@ export default function Plan() {
           <Tile icon="bell-outline" color="#8B6CFF" title="Reminders" sub={(data.settings.notify as { enabled?: boolean } | undefined)?.enabled ? 'On' : 'Bills, paydays, due dates'} href="/notifications" />
         </Grid>
       </Section>
+      </Spot>
 
       <Section title="Calculators">
         <Grid>

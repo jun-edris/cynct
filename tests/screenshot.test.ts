@@ -22,6 +22,16 @@ describe('Maya screenshots', () => {
     expect(parseMayaScreen(SHOTS.mlkit)).toMatchObject({ amount: 20_037, party: 'DRAGONFI', postedAt: at(7, 36), ref: '19EE 941C 93AB' });
   });
 
+  it('reads a card purchase that is still processing (Booking.com hold)', () => {
+    const ml = ['Approved Purchase on  X', '- ₱3,364.48  m', 'BKG*Hotel at Booking.c', 'Processing  Nov 28, 2026, 08:24 AM',
+      'The reserved authorization amount may differ from the final', 'amount once successfully settled with the merchant.', 'Share', 'Reference ID  6332 0080 8607', 'maya', 'Get help'];
+    const messy = ['The reserved authorization amount may differ from the final', '- P3,364.48 mM', 'Approved Purchase on', 'BKG*Hotel at Booking.c @', 'Processing', 'Nov 28, 2026, 08:24 AM', 'e Share', 'Reference ID', '6332 0080 8607', 'maya', 'Get help'];
+    for (const lines of [ml, messy]) {
+      expect(parseMayaScreen(lines)).toMatchObject({ kind: 'purchase', dir: 'out', amount: 336_448, party: 'BKG*Hotel at Booking.c', postedAt: new Date(2026, 10, 28, 8, 24).getTime(), ref: '6332 0080 8607' });
+    }
+    expect(parseCapture(screenToCapture(parseMayaScreen(ml)!))).toMatchObject({ dir: 'out', amount: 336_448 });
+  });
+
   it('reads money sent to a number, with its message', () => {
     expect(parseMayaScreen(SHOTS.sent)).toMatchObject({ kind: 'send', dir: 'out', amount: 38_500, party: '+639672589889', message: 'from JUNAIRE EDRIS', postedAt: at(3, 23) });
   });

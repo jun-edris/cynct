@@ -1,3 +1,4 @@
+import { TourProvider } from '../components/tour';
 import React, { useEffect, useRef, useState } from 'react';
 import { AppState, Text, View } from 'react-native';
 import { Stack, SplashScreen, router, usePathname } from 'expo-router';
@@ -150,15 +151,18 @@ function Shell() {
       <Reminders />
       <CaptureSync />
       <LockGate>
+        <TourProvider>
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: c.bg }, animation: 'slide_from_right' }}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="welcome" />
+          <Stack.Screen name="setup" options={{ gestureEnabled: false }} />
           <Stack.Screen name="tx/[id]" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="transfer/[id]" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="quick" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="saved" options={{ animation: 'fade', gestureEnabled: false }} />
           <Stack.Screen name="pay-planned" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
         </Stack>
+        </TourProvider>
         <Toast />
       </LockGate>
     </View>

@@ -7,7 +7,8 @@ import { Icon, T } from '../components/ui';
 import { NightGradient, OnNightPill, SentiPosed, useReduceMotion } from '../components/k';
 import { LEAN_MS, WALK_MS, walkFrame } from '../lib/walk';
 import { Logo } from '../components/Logo';
-import { applySeed } from '../db/repo';
+import { applySeed, setSetting, type DB } from '../db/repo';
+import type { SetupPath } from '../lib/setup';
 import { emptySetup, mySetup } from '../lib/seed';
 import { pickBackupFile, restoreFromData } from '../lib/backup';
 
@@ -28,14 +29,22 @@ export default function Welcome() {
     </Pressable>
   );
 
+  // New users get the short setup, then Senti's tips on each screen the first time they open it.
+  const begin = (d: DB, path: SetupPath) => {
+    setSetting(d, 'setupPending', path);
+    setSetting(d, 'tours', { auto: true, seen: [] });
+  };
+
   const restore = async () => {
     try {
       const data = await pickBackupFile();
       if (!data) return;
       const msg = restoreFromData(db, data);
+      // Notification access and the backup folder belong to this phone, not the backup: ask again.
+      setSetting(db, 'setupPending', 'restore');
       reload();
       toast(msg);
-      router.replace('/');
+      router.replace('/setup');
     } catch (e) { toast(e instanceof Error ? e.message : 'Couldn’t restore that file.'); }
   };
 
@@ -47,10 +56,10 @@ export default function Welcome() {
           <T v="display" color="#FFFFFF" style={{ fontSize: 44, lineHeight: 46, letterSpacing: -1.6 }}>{'Every centavo,\nin sync.'}</T>
           <T v="medium" color="#E7E0FF" style={{ fontSize: 15, lineHeight: 22 }}>Spending, accounts, bills and every goal, from a new phone to a house. Stays on this phone and works offline.</T>
           {choice('Load my starting setup', 'Wise, GoTyme, Maya, GCash, house and emergency funds',
-            () => { if (act(d => applySeed(d, mySetup()), 'Setup loaded. Set each account’s real balance.')) router.replace('/'); })}
+            () => { if (act(d => { applySeed(d, mySetup()); begin(d, 'starter'); }, 'Setup loaded. Set each account’s real balance.')) router.replace('/setup'); })}
           {choice('Restore a backup', 'A Cynct or Bahay .json file', restore)}
           <OnNightPill label="Start empty" style={{ height: 52, borderRadius: 26, marginTop: 4 }}
-            onPress={() => { if (act(d => applySeed(d, emptySetup()))) router.replace('/wallet'); }} />
+            onPress={() => { if (act(d => { applySeed(d, emptySetup()); begin(d, 'empty'); })) router.replace('/setup'); }} />
         </View>
       </ScrollView>
     </NightGradient>
